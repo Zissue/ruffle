@@ -2394,8 +2394,10 @@ impl<'gc> MovieLoader<'gc> {
             }
         }
 
-        let loader = uc.load_manager.get_loader_mut(handle).unwrap();
-        loader.loader_status = LoaderStatus::Failed;
+        // The `ioError` handler can remove this load with `Loader.close()` or `Loader.load()`.
+        if let Some(loader) = uc.load_manager.get_loader_mut(handle) {
+            loader.loader_status = LoaderStatus::Failed;
+        }
 
         Ok(())
     }

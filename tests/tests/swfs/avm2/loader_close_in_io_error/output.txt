@@ -1,0 +1,7 @@
+load(missing.swf)
+ioError
+close() returned
+unloadAndStop() returned
+load(child_a.swf)
+complete: ChildA
+done
