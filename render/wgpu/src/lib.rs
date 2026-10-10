@@ -193,7 +193,7 @@ impl QueueSyncHandle {
         self,
         with_rgba: F,
         frame: &mut ActiveFrame,
-    ) -> R {
+    ) -> Option<R> {
         match self {
             QueueSyncHandle::AlreadyCopied {
                 index,

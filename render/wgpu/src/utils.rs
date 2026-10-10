@@ -134,11 +134,11 @@ pub fn capture_image<R, F: FnOnce(&[u8], u32) -> R>(
     dimensions: &BufferDimensions,
     index: Option<wgpu::SubmissionIndex>,
     with_rgba: F,
-) -> R {
+) -> Option<R> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let buffer_slice = buffer.slice(..);
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        sender.send(result).unwrap();
+        let _ = sender.send(result);
     });
     device
         .poll(wgpu::PollType::Wait {
@@ -146,14 +146,24 @@ pub fn capture_image<R, F: FnOnce(&[u8], u32) -> R>(
             timeout: None,
         })
         .expect("Device must not fail to poll");
-    let _ = receiver.recv().expect("MPSC channel must not fail");
+    // A browser's WebGPU maps a buffer only once control returns to its event
+    // loop, so waiting for it here would never end.
+    let mapped = if cfg!(target_family = "wasm") {
+        receiver.try_recv().ok()
+    } else {
+        receiver.recv().ok()
+    };
+    if !matches!(mapped, Some(Ok(()))) {
+        buffer.unmap();
+        return None;
+    }
     let map = buffer_slice
         .get_mapped_range()
         .expect("Buffer slice must be mappable");
     let result = with_rgba(&map, dimensions.padded_bytes_per_row);
     drop(map);
     buffer.unmap();
-    result
+    Some(result)
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -178,6 +188,7 @@ pub fn buffer_to_image(
         image::RgbaImage::from_raw(size.width, size.height, bytes)
             .expect("Retrieved texture buffer must be a valid RgbaImage")
     })
+    .expect("A native device must map the buffer once it's polled")
 }
 
 pub fn run_copy_pipeline(

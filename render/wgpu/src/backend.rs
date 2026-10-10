@@ -1722,8 +1722,9 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
         with_rgba: RgbaBufRead,
     ) -> Result<(), ruffle_render::error::Error> {
         let handle = Box::<dyn Any>::downcast::<QueueSyncHandle>(handle).unwrap();
-        handle.capture(with_rgba, &mut self.active_frame);
-        Ok(())
+        handle
+            .capture(with_rgba, &mut self.active_frame)
+            .ok_or(ruffle_render::error::Error::ReadbackNotReady)
     }
 }
 

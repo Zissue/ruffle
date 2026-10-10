@@ -44,4 +44,7 @@ pub enum Error {
 
     #[error("Not yet implemented: {0}")]
     Unimplemented(Cow<'static, str>),
+
+    #[error("The GPU hasn't returned the pixels yet")]
+    ReadbackNotReady,
 }
