@@ -9,6 +9,7 @@ import { HardwareAcceleration } from "./hardware-acceleration.js";
 import { ClipboardPermission } from "./clipboard-permission.js";
 import { ContextMenuOverlay } from "./context-menu-overlay.js";
 import { DebugInfo } from "./debug-info.js";
+import { FrameStats } from "./frame-stats.js";
 
 /*
  *
@@ -21,6 +22,7 @@ export const ruffleShadowTemplate = document.createElement("template");
 ruffleShadowTemplate.content.appendChild(<StaticStyles />);
 ruffleShadowTemplate.content.appendChild(<DynamicStyles />);
 ruffleShadowTemplate.content.appendChild(<MainContainer />);
+ruffleShadowTemplate.content.appendChild(<FrameStats />);
 ruffleShadowTemplate.content.appendChild(<SplashScreen />);
 ruffleShadowTemplate.content.appendChild(<SaveManager />);
 ruffleShadowTemplate.content.appendChild(<VolumeControls />);

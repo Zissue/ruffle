@@ -1,4 +1,9 @@
-//! With the `stats` feature, calls the page's
+//! Times each tick and its render when a frame observer is set or the
+//! `stats` feature is on. A frame observer is called as
+//! `observer(tickMs, renderMs, framesRun, frameRate, wasmMemoryBytes)` after
+//! every tick.
+//!
+//! With the `stats` feature, also calls the page's
 //! `globalThis.__ruffleOnFrame(tickMs, renderMs, counters, renderer,
 //! framesRun, wasmMemoryBytes, gpuMemory, heapBytes, gcMs)`, if any, after
 //! every tick. Setting `globalThis.__ruffleCollectGarbage = true` runs a full
@@ -6,13 +11,14 @@
 //! duration, or -1.
 //! `renderMs` is -1 if nothing rendered. `counters` (from
 //! `ruffle_render_wgpu::stats`) and `gpuMemory` are undefined without a wgpu
-//! renderer. Without the feature, [`Timings`] does nothing.
+//! renderer.
 
+use js_sys::Function;
 use ruffle_core::Player;
 #[cfg(feature = "stats")]
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
-#[cfg(feature = "stats")]
 thread_local! {
     static PERFORMANCE: Option<web_sys::Performance> =
         web_sys::window().and_then(|window| window.performance());
@@ -64,39 +70,33 @@ mod heap {
     static ALLOCATOR: Counting = Counting;
 }
 
-#[cfg(feature = "stats")]
 fn now() -> f64 {
     PERFORMANCE.with(|performance| performance.as_ref().map_or(0.0, |p| p.now()))
 }
 
 pub struct Timings {
-    #[cfg(feature = "stats")]
+    measuring: bool,
     mark: f64,
-    #[cfg(feature = "stats")]
     tick_ms: f64,
-    #[cfg(feature = "stats")]
     render_ms: Option<f64>,
 }
 
-// Without the feature the methods are empty.
 #[cfg_attr(not(feature = "stats"), allow(clippy::needless_pass_by_ref_mut))]
 impl Timings {
     #[inline]
-    pub fn start() -> Self {
+    pub fn start(observed: bool) -> Self {
+        let measuring = observed || cfg!(feature = "stats");
         Self {
-            #[cfg(feature = "stats")]
-            mark: now(),
-            #[cfg(feature = "stats")]
+            measuring,
+            mark: if measuring { now() } else { 0.0 },
             tick_ms: 0.0,
-            #[cfg(feature = "stats")]
             render_ms: None,
         }
     }
 
     #[inline]
     pub fn ticked(&mut self) {
-        #[cfg(feature = "stats")]
-        {
+        if self.measuring {
             let now = now();
             self.tick_ms = now - self.mark;
             self.mark = now;
@@ -105,14 +105,13 @@ impl Timings {
 
     #[inline]
     pub fn rendered(&mut self) {
-        #[cfg(feature = "stats")]
-        {
+        if self.measuring {
             self.render_ms = Some(now() - self.mark);
         }
     }
 
     #[inline]
-    pub fn report(&self, player: &mut Player) {
+    pub fn report(&self, player: &mut Player, observer: Option<&Function>) {
         #[cfg(feature = "stats")]
         {
             let gc_ms = collect_garbage_if_asked(player);
@@ -124,8 +123,16 @@ impl Timings {
                 gc_ms,
             );
         }
-        #[cfg(not(feature = "stats"))]
-        let _ = player;
+        if let Some(observer) = observer {
+            let _ = observer.call5(
+                &JsValue::NULL,
+                &JsValue::from_f64(self.tick_ms),
+                &JsValue::from_f64(self.render_ms.unwrap_or(-1.0)),
+                &JsValue::from_f64(player.frames_run() as f64),
+                &JsValue::from_f64(player.frame_rate()),
+                &wasm_memory_bytes(),
+            );
+        }
     }
 }
 
@@ -202,7 +209,6 @@ fn gpu_memory() -> JsValue {
     JsValue::UNDEFINED
 }
 
-#[cfg(feature = "stats")]
 fn wasm_memory_bytes() -> JsValue {
     js_sys::Reflect::get(&wasm_bindgen::memory(), &JsValue::from_str("buffer"))
         .and_then(|buffer| js_sys::Reflect::get(&buffer, &JsValue::from_str("byteLength")))

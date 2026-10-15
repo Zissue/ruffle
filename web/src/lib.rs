@@ -152,6 +152,7 @@ struct RuffleInstance {
     webglcontextlost_callback: Option<JsCallback<WebGlContextEvent>>,
     has_focus: bool,
     trace_observer: Rc<RefCell<JsValue>>,
+    frame_observer: Option<js_sys::Function>,
     log_subscriber: Arc<Layered<WASMLayer, Registry>>,
     pressed_buttons: Vec<GamepadButton>,
 }
@@ -527,6 +528,12 @@ impl RuffleHandle {
         });
     }
 
+    pub fn set_frame_observer(&self, observer: Option<js_sys::Function>) {
+        let _ = self.with_instance_mut(|instance| {
+            instance.frame_observer = observer;
+        });
+    }
+
     /// Returns the web AudioContext used by this player.
     /// Returns `None` if the audio backend does not use Web Audio.
     pub fn audio_context(&self) -> Option<web_sys::AudioContext> {
@@ -605,6 +612,7 @@ impl RuffleHandle {
             timestamp: None,
             has_focus: false,
             trace_observer: player.trace_observer,
+            frame_observer: None,
             log_subscriber,
             pressed_buttons: vec![],
         };
@@ -1190,8 +1198,10 @@ impl RuffleHandle {
         let mut gamepad_button_events = Vec::new();
         let mut supersample = false;
         let mut stage_sample_count = 1;
+        let mut frame_observer = None;
         let _ = self.with_instance_mut(|instance| {
             supersample = instance.supersample;
+            frame_observer.clone_from(&instance.frame_observer);
             // Check for canvas resize.
             let canvas_width = instance.canvas.client_width();
             let canvas_height = instance.canvas.client_height();
@@ -1323,7 +1333,7 @@ impl RuffleHandle {
                 });
             }
 
-            let mut timings = frame_stats::Timings::start();
+            let mut timings = frame_stats::Timings::start(frame_observer.is_some());
             core.tick(FloatDuration::from_millis(dt));
             timings.ticked();
 
@@ -1332,7 +1342,7 @@ impl RuffleHandle {
                 core.render();
                 timings.rendered();
             }
-            timings.report(core);
+            timings.report(core, frame_observer.as_ref());
 
             next_frame_in = core
                 .is_playing()

@@ -13,6 +13,7 @@ import {
 } from "../../public/config/index.js";
 import { MovieMetadata, ReadyState } from "../../public/player/index.js";
 import { ruffleShadowTemplate } from "../ui/shadow-template.js";
+import { FrameStatsView } from "../ui/frame-stats.js";
 import { text, textAsParagraphs } from "../i18n.js";
 import { swfFileName } from "../../swf-utils.js";
 import { isExtension } from "../../current-script.js";
@@ -162,6 +163,7 @@ export class InnerPlayer {
     private readonly hardwareAccelerationModal: HTMLDivElement;
     private readonly clipboardModal: HTMLDivElement;
     private readonly debugInfoModal: HTMLDivElement;
+    private readonly frameStats: FrameStatsView;
 
     private readonly contextMenuOverlay: HTMLElement;
     // Firefox has a read-only "contextMenu" property,
@@ -267,6 +269,10 @@ export class InnerPlayer {
         this.addModalJavaScript(this.clipboardModal);
         this.addModalJavaScript(this.debugInfoModal);
         this.addDebugInfoJavaScript(this.debugInfoModal);
+        this.frameStats = new FrameStatsView(
+            this.shadow.getElementById("frame-stats")!,
+            this.container,
+        );
 
         this.volumeSettings = new VolumeControls(false, 100);
         this.addVolumeControlsJavaScript(this.volumeControls);
@@ -774,6 +780,7 @@ export class InnerPlayer {
             throw e;
         });
         this.instance!.set_render_scale(this.renderScaleSetting);
+        this.frameStats.setInstance(this.instance);
 
         this.rendererDebugInfo = this.instance!.renderer_debug_info();
 
@@ -886,6 +893,7 @@ export class InnerPlayer {
     destroy(): void {
         if (this.instance) {
             this.stopBackgroundTick();
+            this.frameStats.setInstance(null);
             this.instance.destroy();
             this.instance = null;
             this.metadata = null;
@@ -1598,6 +1606,13 @@ export class InnerPlayer {
             onClick: async () => {
                 this.openVolumeControls();
             },
+        });
+
+        items.push({
+            text: text("context-menu-frame-stats"),
+            checked: this.frameStats.visible,
+            onClick: async () =>
+                this.frameStats.setVisible(!this.frameStats.visible),
         });
 
         if (
