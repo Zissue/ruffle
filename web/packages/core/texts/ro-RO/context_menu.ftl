@@ -1,5 +1,4 @@
 context-menu-download-swf = Descarcă .swf
-context-menu-copy-debug-info = Copiază informațiile de depanare
 context-menu-open-save-manager = Deschide managerul de salvări
 context-menu-about-ruffle =
     { $flavor ->

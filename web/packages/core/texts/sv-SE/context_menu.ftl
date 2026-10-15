@@ -1,5 +1,4 @@
 context-menu-download-swf = Ladda ned SWF-fil
-context-menu-copy-debug-info = Kopiera felsökningsinformation
 context-menu-open-save-manager = Öppna sparfilshanteraren
 context-menu-about-ruffle =
     { $flavor ->

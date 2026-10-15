@@ -1,5 +1,4 @@
 context-menu-download-swf = Преузмите .swf датотеку
-context-menu-copy-debug-info = Копирајте информације за отклањање грешака
 context-menu-open-save-manager = Отвори менаџер складишта
 context-menu-about-ruffle =
     { $flavor ->

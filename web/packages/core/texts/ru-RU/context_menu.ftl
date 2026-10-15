@@ -1,5 +1,4 @@
 context-menu-download-swf = Скачать .swf
-context-menu-copy-debug-info = Копировать отладочную информацию
 context-menu-open-save-manager = Менеджер сохранений
 context-menu-about-ruffle =
     { $flavor ->

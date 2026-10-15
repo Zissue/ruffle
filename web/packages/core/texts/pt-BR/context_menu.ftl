@@ -1,5 +1,4 @@
 context-menu-download-swf = Baixar SWF
-context-menu-copy-debug-info = Copiar informação de depuração
 context-menu-open-save-manager = Abrir o gerenciador de salvamento
 context-menu-about-ruffle =
     { $flavor ->

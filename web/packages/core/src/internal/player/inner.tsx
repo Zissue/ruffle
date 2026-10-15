@@ -161,6 +161,7 @@ export class InnerPlayer {
     private readonly videoModal: HTMLDivElement;
     private readonly hardwareAccelerationModal: HTMLDivElement;
     private readonly clipboardModal: HTMLDivElement;
+    private readonly debugInfoModal: HTMLDivElement;
 
     private readonly contextMenuOverlay: HTMLElement;
     // Firefox has a read-only "contextMenu" property,
@@ -260,7 +261,12 @@ export class InnerPlayer {
         this.addModalJavaScript(this.volumeControls);
         this.addModalJavaScript(this.videoModal);
         this.addModalJavaScript(this.hardwareAccelerationModal);
+        this.debugInfoModal = this.shadow.getElementById(
+            "debug-info-modal",
+        ) as HTMLDivElement;
         this.addModalJavaScript(this.clipboardModal);
+        this.addModalJavaScript(this.debugInfoModal);
+        this.addDebugInfoJavaScript(this.debugInfoModal);
 
         this.volumeSettings = new VolumeControls(false, 100);
         this.addVolumeControlsJavaScript(this.volumeControls);
@@ -386,6 +392,33 @@ export class InnerPlayer {
         if (closeModal) {
             closeModal.addEventListener("click", hideModal);
         }
+    }
+
+    private addDebugInfoJavaScript(debugInfoModal: HTMLDivElement): void {
+        const copyButton = debugInfoModal.querySelector(
+            "#debug-info-copy",
+        ) as HTMLElement;
+        const debugText = debugInfoModal.querySelector(
+            "#debug-info-text",
+        ) as HTMLTextAreaElement;
+        if (!navigator.clipboard || !window.isSecureContext) {
+            copyButton.remove();
+            return;
+        }
+        let resetLabel: ReturnType<typeof setTimeout> | undefined;
+        copyButton.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(debugText.value);
+            } catch {
+                debugText.select();
+                return;
+            }
+            copyButton.textContent = text("debug-info-copied");
+            clearTimeout(resetLabel);
+            resetLabel = setTimeout(() => {
+                copyButton.textContent = text("debug-info-copy");
+            }, 2000);
+        });
     }
 
     /**
@@ -1421,6 +1454,15 @@ export class InnerPlayer {
         this.saveManager.classList.remove("hidden");
     }
 
+    private openDebugInfo(): void {
+        (
+            this.debugInfoModal.querySelector(
+                "#debug-info-text",
+            ) as HTMLTextAreaElement
+        ).value = this.getPanicData().trimStart();
+        this.debugInfoModal.classList.remove("hidden");
+    }
+
     /**
      * Opens the volume controls.
      */
@@ -1571,14 +1613,6 @@ export class InnerPlayer {
             });
         }
 
-        if (navigator.clipboard && window.isSecureContext) {
-            items.push({
-                text: text("context-menu-copy-debug-info"),
-                onClick: () =>
-                    navigator.clipboard.writeText(this.getPanicData()),
-            });
-        }
-
         if (this.checkSaves()) {
             items.push({
                 text: text("context-menu-open-save-manager"),
@@ -1593,9 +1627,7 @@ export class InnerPlayer {
                 flavor: isExtension ? "extension" : "",
                 version: buildInfo.versionName,
             }),
-            async onClick() {
-                window.open(RUFFLE_ORIGIN, "_blank");
-            },
+            onClick: async () => this.openDebugInfo(),
         });
         // Give option to disable context menu when touch support is being used
         // to avoid a long press triggering the context menu. (#1972)

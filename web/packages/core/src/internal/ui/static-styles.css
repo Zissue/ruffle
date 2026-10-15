@@ -576,6 +576,45 @@ label[for="mute-checkbox"] {
     margin-bottom: 8px;
 }
 
+#debug-info-modal .modal-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    top: 5%;
+    width: min(720px, 95%);
+    height: 90%;
+    box-sizing: border-box;
+}
+
+#debug-info-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    a {
+        flex: 1;
+        color: inherit;
+        font-weight: bold;
+    }
+
+    .close-modal {
+        position: static;
+    }
+}
+
+#debug-info-text {
+    flex: 1;
+    font-family: monospace;
+    font-size: 12px;
+    resize: none;
+    background: rgb(var(--modal-foreground-rgb), 0.07);
+    border: none;
+    border-radius: 8px;
+    color: rgb(var(--modal-foreground-rgb));
+    padding: 10px;
+    outline: none;
+}
+
 #clipboard-modal h2 {
     margin-top: 4px;
     margin-right: 36px;

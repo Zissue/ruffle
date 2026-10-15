@@ -1,5 +1,4 @@
 context-menu-download-swf = SWF файлны йөкләү
-context-menu-copy-debug-info = Дебаг мәгълүматын күчерү
 context-menu-open-save-manager = Саклау менеджерын ачу
 context-menu-about-ruffle =
     { $flavor ->

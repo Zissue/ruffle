@@ -1,5 +1,4 @@
 context-menu-download-swf = SWF fájl letöltése
-context-menu-copy-debug-info = Hibakeresési információk másolása
 context-menu-open-save-manager = Mentéskezelő megnyitása
 context-menu-about-ruffle =
     { $flavor ->

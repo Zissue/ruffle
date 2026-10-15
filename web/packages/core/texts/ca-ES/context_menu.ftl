@@ -1,5 +1,4 @@
 context-menu-download-swf = Baixa el fitxer SWF
-context-menu-copy-debug-info = Copia la informació de depuració
 context-menu-open-save-manager = Obre el gestor d'emmagatzematge
 context-menu-about-ruffle =
     { $flavor ->

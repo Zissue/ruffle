@@ -8,6 +8,7 @@ import { UnsupportedVideo } from "./unsupported-video.js";
 import { HardwareAcceleration } from "./hardware-acceleration.js";
 import { ClipboardPermission } from "./clipboard-permission.js";
 import { ContextMenuOverlay } from "./context-menu-overlay.js";
+import { DebugInfo } from "./debug-info.js";
 
 /*
  *
@@ -26,4 +27,5 @@ ruffleShadowTemplate.content.appendChild(<VolumeControls />);
 ruffleShadowTemplate.content.appendChild(<UnsupportedVideo />);
 ruffleShadowTemplate.content.appendChild(<HardwareAcceleration />);
 ruffleShadowTemplate.content.appendChild(<ClipboardPermission />);
+ruffleShadowTemplate.content.appendChild(<DebugInfo />);
 ruffleShadowTemplate.content.appendChild(<ContextMenuOverlay />);
