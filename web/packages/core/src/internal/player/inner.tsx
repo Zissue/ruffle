@@ -14,6 +14,7 @@ import {
 import { MovieMetadata, ReadyState } from "../../public/player/index.js";
 import { ruffleShadowTemplate } from "../ui/shadow-template.js";
 import { FrameStatsView } from "../ui/frame-stats.js";
+import { describeSystem } from "../system-info.js";
 import { text, textAsParagraphs } from "../i18n.js";
 import { swfFileName } from "../../swf-utils.js";
 import { isExtension } from "../../current-script.js";
@@ -201,6 +202,7 @@ export class InnerPlayer {
 
     private panicked = false;
     private rendererDebugInfo = "";
+    private systemInfo = "";
 
     private longPressTimer: ReturnType<typeof setTimeout> | null = null;
     private pointerDownPosition: Point | null = null;
@@ -783,6 +785,10 @@ export class InnerPlayer {
         this.frameStats.setInstance(this.instance);
 
         this.rendererDebugInfo = this.instance!.renderer_debug_info();
+        describeSystem().then(
+            (info) => (this.systemInfo = info),
+            (error) => (this.systemInfo = `System info failed: ${error}`),
+        );
 
         if (this.rendererDebugInfo.includes("Adapter Device Type: Cpu")) {
             this.container.addEventListener(
@@ -2055,7 +2061,14 @@ export class InnerPlayer {
             this.loadedConfig ? this.loadedConfig.allowScriptAccess : false
         }\n`;
         result += `${this.rendererDebugInfo}\n`;
+        result += `Render scale: ${this.renderScaleSetting}\n`;
         result += this.debugPlayerInfo();
+
+        result += "\n# Performance\n";
+        result += `${
+            this.frameStats.summary ??
+            "Turn on Frame Stats in the context menu to include timings."
+        }\n`;
 
         result += "\n# Page Info\n";
         result += `Page URL: ${document.location.href}\n`;
@@ -2067,6 +2080,10 @@ export class InnerPlayer {
         result += `User Agent: ${window.navigator.userAgent}\n`;
         result += `Platform: ${window.navigator.platform}\n`;
         result += `Has touch support: ${window.navigator.maxTouchPoints > 0}\n`;
+        result += `Screen: ${screen.width}×${screen.height} at device pixel ratio ${window.devicePixelRatio}\n`;
+        if (this.systemInfo) {
+            result += `${this.systemInfo}\n`;
+        }
 
         result += "\n# Ruffle Info\n";
         result += `Version: ${buildInfo.versionNumber}\n`;

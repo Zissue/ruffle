@@ -78,6 +78,7 @@ export class FrameStatsView {
     private windowFramesRun = 0;
     private logic = new Durations();
     private renders = new Durations();
+    summary: string | null = null;
 
     constructor(root: HTMLElement, container: HTMLElement) {
         this.root = root;
@@ -211,6 +212,13 @@ export class FrameStatsView {
         this.logicText.textContent = this.logic.format();
         this.render.textContent = this.renders.format();
         this.memory.textContent = `${Math.round(this.memoryBytes / (1024 * 1024))} MB`;
+        this.summary = [
+            `Renderer: ${this.renderer.textContent}`,
+            `FPS: ${this.fps.textContent}`,
+            `Logic per frame: ${this.logicText.textContent}`,
+            `Render: ${this.render.textContent}`,
+            `Wasm memory: ${this.memory.textContent}`,
+        ].join("\n");
     }
 
     private drawGraph() {
