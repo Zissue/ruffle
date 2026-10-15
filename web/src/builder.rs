@@ -502,9 +502,7 @@ impl RuffleInstanceBuilder {
     }
 
     #[allow(clippy::unused_async)]
-    pub async fn create_renderer(
-        &self,
-    ) -> Result<(Box<dyn RenderBackend>, HtmlCanvasElement, bool), Box<dyn Error>> {
+    pub async fn create_renderer(&self) -> Result<CreatedRenderer, Box<dyn Error>> {
         let window = web_sys::window().ok_or("Expected window")?;
         let document = window.document().ok_or("Expected document")?;
         #[cfg(not(any(
@@ -527,6 +525,7 @@ impl RuffleInstanceBuilder {
             }
         }
 
+        let mut failures = vec![];
         // Try to create a backend, falling through to the next backend on failure.
         // We must recreate the canvas each attempt, as only a single context may be created per canvas
         // with `getContext`.
@@ -556,12 +555,15 @@ impl RuffleInstanceBuilder {
                         .await
                         {
                             Ok(renderer) => {
-                                return Ok((Box::new(renderer), canvas, false));
+                                return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
                             }
                             Err(error) => {
-                                tracing::error!("Error creating wgpu webgpu renderer: {}", error)
+                                tracing::error!("Error creating wgpu webgpu renderer: {}", error);
+                                failures.push(format!("webgpu: {error}"));
                             }
                         }
+                    } else {
+                        failures.push("webgpu: navigator.gpu is missing".to_string());
                     }
                 }
                 #[cfg(all(feature = "wgpu-webgl", target_family = "wasm"))]
@@ -583,10 +585,11 @@ impl RuffleInstanceBuilder {
                             // On WebGL, every render pass resolves its samples with a full-size
                             // blit, so the player supersamples instead.
                             renderer.set_max_sample_count(1);
-                            return Ok((Box::new(renderer), canvas, true));
+                            return Ok(CreatedRenderer::new(renderer, canvas, true, failures));
                         }
                         Err(error) => {
-                            tracing::error!("Error creating wgpu webgl renderer: {}", error)
+                            tracing::error!("Error creating wgpu webgl renderer: {}", error);
+                            failures.push(format!("wgpu-webgl: {error}"));
                         }
                     }
                 }
@@ -604,10 +607,11 @@ impl RuffleInstanceBuilder {
                         self.quality,
                     ) {
                         Ok(renderer) => {
-                            return Ok((Box::new(renderer), canvas, false));
+                            return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
                         }
                         Err(error) => {
-                            tracing::error!("Error creating WebGL renderer: {}", error)
+                            tracing::error!("Error creating WebGL renderer: {}", error);
+                            failures.push(format!("webgl: {error}"));
                         }
                     }
                 }
@@ -622,15 +626,18 @@ impl RuffleInstanceBuilder {
                     match ruffle_render_canvas::WebCanvasRenderBackend::new(&canvas, is_transparent)
                     {
                         Ok(renderer) => {
-                            return Ok((Box::new(renderer), canvas, false));
+                            return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
                         }
-                        Err(error) => tracing::error!("Error creating canvas renderer: {}", error),
+                        Err(error) => {
+                            tracing::error!("Error creating canvas renderer: {}", error);
+                            failures.push(format!("canvas: {error}"));
+                        }
                     }
                 }
                 _ => {}
             }
         }
-        Err("Unable to create renderer".into())
+        Err(format!("Unable to create renderer ({})", failures.join("; ")).into())
     }
 
     pub fn create_audio_backend(
@@ -679,7 +686,12 @@ impl RuffleInstanceBuilder {
     ) -> Result<BuiltPlayer, Box<dyn Error>> {
         let window = web_sys::window().ok_or("Expected window")?;
 
-        let (renderer, canvas, supersample) = self.create_renderer().await?;
+        let CreatedRenderer {
+            renderer,
+            canvas,
+            supersample,
+            failures: renderer_failures,
+        } = self.create_renderer().await?;
 
         let mut builder = PlayerBuilder::new()
             .with_boxed_renderer(renderer)
@@ -748,7 +760,31 @@ impl RuffleInstanceBuilder {
             canvas,
             trace_observer,
             supersample,
+            renderer_failures,
         })
+    }
+}
+
+pub struct CreatedRenderer {
+    renderer: Box<dyn RenderBackend>,
+    canvas: HtmlCanvasElement,
+    supersample: bool,
+    failures: Vec<String>,
+}
+
+impl CreatedRenderer {
+    fn new(
+        renderer: impl RenderBackend + 'static,
+        canvas: HtmlCanvasElement,
+        supersample: bool,
+        failures: Vec<String>,
+    ) -> Self {
+        Self {
+            renderer: Box::new(renderer),
+            canvas,
+            supersample,
+            failures,
+        }
     }
 }
 
@@ -757,4 +793,5 @@ pub struct BuiltPlayer {
     pub canvas: HtmlCanvasElement,
     pub trace_observer: Rc<RefCell<JsValue>>,
     pub supersample: bool,
+    pub renderer_failures: Vec<String>,
 }

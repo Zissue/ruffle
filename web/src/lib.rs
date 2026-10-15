@@ -133,6 +133,7 @@ struct RuffleInstance {
     background_tick_mode: bool,
     render_scale: f64,
     supersample: bool,
+    renderer_failures: Vec<String>,
     stage_sample_count: Cell<u32>,
     mouse_move_callback: Option<JsCallback<PointerEvent>>,
     pending_mouse_move: Cell<Option<PendingMouseMove>>,
@@ -400,8 +401,18 @@ impl RuffleHandle {
     }
 
     pub fn renderer_debug_info(&self) -> JsValue {
-        self.with_core(|core| JsValue::from_str(&core.renderer().debug_info()))
-            .unwrap_or(JsValue::NULL)
+        self.with_instance(|instance| {
+            let failures = instance
+                .renderer_failures
+                .iter()
+                .map(|failure| format!("Renderer failed: {failure}\n"))
+                .collect::<String>();
+            let info = instance
+                .with_core(|core| core.renderer().debug_info().into_owned())
+                .unwrap_or_default();
+            JsValue::from_str(&format!("{failures}{info}"))
+        })
+        .unwrap_or(JsValue::NULL)
     }
 
     pub fn renderer_name(&self) -> JsValue {
@@ -592,6 +603,7 @@ impl RuffleHandle {
             background_tick_mode: false,
             render_scale: 1.0,
             supersample: player.supersample,
+            renderer_failures: player.renderer_failures,
             stage_sample_count: Cell::new(1),
             mouse_move_callback: None,
             pending_mouse_move: Cell::new(None),
