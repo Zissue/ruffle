@@ -111,6 +111,10 @@ impl Surface {
         nearest_layer: LayerRef<'encoder>,
         texture_pool: &'encoder mut TexturePool,
     ) -> CommandTarget {
+        // Every draw and blend but Alpha, Erase and shaders keeps an opaque pixel opaque.
+        let mut opaque = render_target_mode
+            .color()
+            .is_some_and(|color| color.a >= 1.0);
         let target = CommandTarget::new(
             descriptors,
             texture_pool,
@@ -201,6 +205,7 @@ impl Surface {
                         num_masks,
                         mask_state,
                         needs_stencil,
+                        opaque,
                         parent_copy.as_ref(),
                     );
 
@@ -292,6 +297,7 @@ impl Surface {
                         &FilterSource::for_entire_texture(texture.texture(), texture.view()),
                     )
                     .expect("Failed to run PixelBender blend mode");
+                    opaque = false;
                 }
                 Chunk::Blend {
                     texture,
@@ -312,6 +318,7 @@ impl Surface {
                         }
                         _ => &target,
                     };
+                    opaque &= !matches!(blend_mode, ComplexBlend::Alpha | ComplexBlend::Erase);
 
                     let parent_blend_buffer = match region {
                         Some(rect) => {

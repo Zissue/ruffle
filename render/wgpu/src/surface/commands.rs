@@ -5,7 +5,7 @@ use crate::buffer_builder::BufferBuilder;
 use crate::buffer_pool::TexturePool;
 use crate::dynamic_transforms::DynamicTransforms;
 use crate::mesh::{DrawType, Mesh, as_mesh};
-use crate::pipelines::ShapePipeline;
+use crate::pipelines::{MultiplyPipelines, ShapePipeline};
 use crate::surface::Surface;
 use crate::surface::target::CommandTarget;
 use crate::{
@@ -34,6 +34,7 @@ pub struct CommandRenderer<'encoder> {
     num_masks: u32,
     mask_state: MaskState,
     needs_stencil: bool,
+    opaque_target: bool,
     dynamic_vertex_buffer: &'encoder wgpu::Buffer,
     parent_copy: Option<&'encoder wgpu::BindGroup>,
     pipeline: Option<&'encoder wgpu::RenderPipeline>,
@@ -52,6 +53,7 @@ impl<'encoder> CommandRenderer<'encoder> {
         num_masks: u32,
         mask_state: MaskState,
         needs_stencil: bool,
+        opaque_target: bool,
         parent_copy: Option<&'encoder wgpu::BindGroup>,
     ) -> Self {
         Self {
@@ -60,6 +62,7 @@ impl<'encoder> CommandRenderer<'encoder> {
             mask_state,
             descriptors,
             needs_stencil,
+            opaque_target,
             dynamic_vertex_buffer,
             parent_copy,
             pipeline: None,
@@ -101,6 +104,12 @@ impl<'encoder> CommandRenderer<'encoder> {
             render_pass.set_stencil_reference(reference);
             self.stencil_reference = Some(reference);
         }
+    }
+
+    fn second_step(&self, blend: DirectBlend) -> Option<&'encoder MultiplyPipelines> {
+        self.pipelines
+            .second_step(blend)
+            .filter(|_| !self.opaque_target)
     }
 
     fn bind_parent_copy(&self, render_pass: &mut wgpu::RenderPass<'encoder>, blend: DirectBlend) {
@@ -334,10 +343,7 @@ impl<'encoder> CommandRenderer<'encoder> {
             None => (&descriptors.quad.vertices_pos_uv, 0),
         };
 
-        let second = self
-            .pipelines
-            .second_step(blend_mode)
-            .map(|second| &second.bitmap);
+        let second = self.second_step(blend_mode).map(|second| &second.bitmap);
         for pipeline in std::iter::once(None).chain(second.map(Some)) {
             if let Some(pipeline) = pipeline {
                 self.set_shape_pipeline(render_pass, pipeline);
@@ -369,10 +375,7 @@ impl<'encoder> CommandRenderer<'encoder> {
             None => (&self.descriptors.quad.vertices_pos_uv, 0),
         };
 
-        let second = self
-            .pipelines
-            .second_step(blend_mode)
-            .map(|second| &second.bitmap);
+        let second = self.second_step(blend_mode).map(|second| &second.bitmap);
         for pipeline in std::iter::once(None).chain(second.map(Some)) {
             if let Some(pipeline) = pipeline {
                 self.set_shape_pipeline(render_pass, pipeline);
@@ -431,14 +434,11 @@ impl<'encoder> CommandRenderer<'encoder> {
             } else {
                 0
             };
-            let second = self
-                .pipelines
-                .second_step(blend)
-                .map(|second| match &draw.draw_type {
-                    DrawType::Color => &second.color,
-                    DrawType::Gradient { .. } => &second.gradient,
-                    DrawType::Bitmap { .. } => &second.bitmap,
-                });
+            let second = self.second_step(blend).map(|second| match &draw.draw_type {
+                DrawType::Color => &second.color,
+                DrawType::Gradient { .. } => &second.gradient,
+                DrawType::Bitmap { .. } => &second.bitmap,
+            });
             for pipeline in std::iter::once(None).chain(second.map(Some)) {
                 if let Some(pipeline) = pipeline {
                     self.set_shape_pipeline(render_pass, pipeline);
