@@ -47,15 +47,22 @@ impl<T> ExpiringValues<T> {
 
     pub fn end_frame(&mut self) {
         self.frame = self.frame.wrapping_add(1);
-        if !self.frame.is_multiple_of(Self::SWEEP_INTERVAL) {
-            return;
+        if self.frame.is_multiple_of(Self::SWEEP_INTERVAL) {
+            self.retain_used_within(Self::MAX_IDLE_FRAMES);
         }
+    }
+
+    pub fn drop_unused_since_last_frame(&mut self) {
+        self.retain_used_within(1);
+    }
+
+    fn retain_used_within(&mut self, frames: u32) {
         let frame = self.frame;
         self.values.retain(|value| {
             let Some(value) = value.upgrade() else {
                 return false;
             };
-            if frame.wrapping_sub(value.last_used.get()) <= Self::MAX_IDLE_FRAMES {
+            if frame.wrapping_sub(value.last_used.get()) <= frames {
                 return true;
             }
             value.value.take();

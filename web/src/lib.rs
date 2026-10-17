@@ -400,6 +400,10 @@ impl RuffleHandle {
         });
     }
 
+    pub fn release_memory(&self) {
+        let _ = self.with_core_mut(|core| core.release_memory());
+    }
+
     pub fn render_scale(&self) -> f64 {
         self.with_instance(|instance| instance.render_scale)
             .unwrap_or(1.0)

@@ -481,6 +481,15 @@ impl<T: RenderTarget> WgpuRenderBackend<T> {
         &self.descriptors
     }
 
+    fn count_pool_bytes(&self) {
+        crate::stats::set_with(&crate::stats::POOL_BYTES, || {
+            self.texture_pool.idle_bytes() as i64
+        });
+        crate::stats::set_with(&crate::stats::OFFSCREEN_POOL_BYTES, || {
+            self.offscreen_texture_pool.idle_bytes() as i64
+        });
+    }
+
     pub fn target(&self) -> &T {
         &self.target
     }
@@ -1183,12 +1192,7 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
             .lock()
             .expect("Scratch lock")
             .reset();
-        crate::stats::set_with(&crate::stats::POOL_BYTES, || {
-            self.texture_pool.idle_bytes() as i64
-        });
-        crate::stats::set_with(&crate::stats::OFFSCREEN_POOL_BYTES, || {
-            self.offscreen_texture_pool.idle_bytes() as i64
-        });
+        self.count_pool_bytes();
         self.profiler
             .end_frame()
             .expect("Frame should end successfully");
@@ -1386,6 +1390,18 @@ impl<T: RenderTarget + 'static> RenderBackend for WgpuRenderBackend<T> {
 
     fn is_offscreen_supported(&self) -> bool {
         true
+    }
+
+    fn release_pooled_resources(&mut self) {
+        self.active_frame.submit_direct(&self.descriptors);
+        self.texture_pool.destroy_idle_textures();
+        self.offscreen_texture_pool.destroy_idle_textures();
+        self.offscreen_buffer_pool.destroy_available();
+        self.dropped_textures.destroy();
+        self.dynamic_transforms.drop_lists();
+        // Browsers hand destroyed resources back only once the queue submits again.
+        self.descriptors.queue.submit(None);
+        self.count_pool_bytes();
     }
 
     fn apply_filter(

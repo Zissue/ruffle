@@ -906,6 +906,11 @@ impl<'gc> Library<'gc> {
         self.decoded_shapes.end_frame();
     }
 
+    pub fn drop_unused_since_last_frame(&mut self) {
+        self.cache_textures.drop_unused_since_last_frame();
+        self.decoded_shapes.drop_unused_since_last_frame();
+    }
+
     pub fn sweep_font_caches(&self) {
         for font in self.device_fonts.iter_all() {
             font.sweep_caches();

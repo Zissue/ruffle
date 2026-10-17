@@ -56,6 +56,10 @@ export class PlayerV1Impl implements PlayerV1 {
         this.#inner.volume = value;
     }
 
+    releaseMemory(): void {
+        this.#inner.releaseMemory();
+    }
+
     get renderScale(): number {
         return this.#inner.renderScale;
     }

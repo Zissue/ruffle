@@ -96,6 +96,22 @@ export interface PlayerV1 {
     set volume(value: number);
 
     /**
+     * Frees memory the player can rebuild when it needs it.
+     *
+     * Runs a full garbage collection, then frees the GPU textures and buffers
+     * the player keeps for reuse, and the bitmap caches and decoded shapes the
+     * last frame didn't use. The movie keeps running. Anything it needs again
+     * is rebuilt, which costs the next frames some time. The collection can
+     * take as long as a slow frame, so call this when memory is short or the
+     * player is out of sight, not every frame.
+     *
+     * WebAssembly memory never shrinks, so the page's memory use doesn't drop.
+     * Later allocations reuse the freed memory instead of growing it. GPU
+     * memory is returned at once.
+     */
+    releaseMemory(): void;
+
+    /**
      * Returns the fraction of the display's resolution the movie is rendered at.
      *
      * @returns The render scale. 1.0 renders at the display's resolution.

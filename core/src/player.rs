@@ -2501,6 +2501,12 @@ impl Player {
         self.unregister_freed_sounds();
     }
 
+    pub fn release_memory(&mut self) {
+        self.collect_garbage();
+        self.enter_arena_mut(|_, gc_root, _| gc_root.library.drop_unused_since_last_frame());
+        self.renderer.release_pooled_resources();
+    }
+
     fn unregister_freed_sounds(&mut self) {
         let sounds = self
             .gc_arena

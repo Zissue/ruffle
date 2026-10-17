@@ -61,4 +61,8 @@ impl DynamicTransforms {
         lists.clear();
         self.lists.borrow_mut().push(lists);
     }
+
+    pub fn drop_lists(&self) {
+        self.lists.take();
+    }
 }

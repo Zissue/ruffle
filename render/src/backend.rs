@@ -80,6 +80,8 @@ pub trait RenderBackend: Any {
         false
     }
 
+    fn release_pooled_resources(&mut self) {}
+
     fn submit_frame(
         &mut self,
         clear: swf::Color,

@@ -1116,6 +1116,10 @@ export class InnerPlayer {
         }
     }
 
+    releaseMemory(): void {
+        this.instance?.release_memory();
+    }
+
     get renderScale(): number {
         return this.instance?.render_scale() ?? this.renderScaleSetting;
     }

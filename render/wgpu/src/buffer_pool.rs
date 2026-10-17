@@ -138,14 +138,16 @@ impl TexturePool {
 
 impl<Description: BufferDescription> BufferPool<(wgpu::Texture, wgpu::TextureView), Description> {
     fn destroy_available(&self) {
-        let available = std::mem::take(
-            &mut *self
-                .available
-                .lock()
-                .expect("Should not be able to lock recursively"),
-        );
-        for ((texture, _), _) in available {
+        for ((texture, _), _) in self.take_available() {
             texture.destroy();
+        }
+    }
+}
+
+impl<Description: BufferDescription> BufferPool<wgpu::Buffer, Description> {
+    pub fn destroy_available(&self) {
+        for (buffer, _) in self.take_available() {
+            buffer.destroy();
         }
     }
 }
@@ -221,6 +223,15 @@ impl<Type, Description: BufferDescription> BufferPool<Type, Description> {
             .lock()
             .expect("Should not be able to lock recursively")
             .len()
+    }
+
+    fn take_available(&self) -> Vec<(Type, Description)> {
+        std::mem::take(
+            &mut *self
+                .available
+                .lock()
+                .expect("Should not be able to lock recursively"),
+        )
     }
 
     pub fn take(
