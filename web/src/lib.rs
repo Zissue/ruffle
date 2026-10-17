@@ -12,7 +12,7 @@ mod storage;
 mod ui;
 mod zip;
 
-use crate::builder::RuffleInstanceBuilder;
+use crate::builder::{RuffleInstanceBuilder, Sampling};
 use external_interface::{external_to_js_value, js_to_external_value};
 use input::{web_input_to_ruffle_key_descriptor, web_to_ruffle_text_control};
 use js_sys::{Error as JsError, Uint8Array};
@@ -132,7 +132,8 @@ struct RuffleInstance {
     scheduled_tick: Cell<Option<ScheduledTick>>,
     background_tick_mode: bool,
     render_scale: f64,
-    supersample: bool,
+    sampling: Sampling,
+    single_sample: bool,
     renderer_failures: Vec<String>,
     stage_sample_count: Cell<u32>,
     mouse_move_callback: Option<JsCallback<PointerEvent>>,
@@ -602,7 +603,8 @@ impl RuffleHandle {
             scheduled_tick: Cell::new(None),
             background_tick_mode: false,
             render_scale: 1.0,
-            supersample: player.supersample,
+            sampling: player.sampling,
+            single_sample: false,
             renderer_failures: player.renderer_failures,
             stage_sample_count: Cell::new(1),
             mouse_move_callback: None,
@@ -1208,19 +1210,32 @@ impl RuffleHandle {
         let mut next_frame_in = None;
         let mut new_dimensions = None;
         let mut gamepad_button_events = Vec::new();
-        let mut supersample = false;
+        let mut sampling = Sampling::Multisample;
+        let mut single_sample = None;
         let mut stage_sample_count = 1;
         let mut frame_observer = None;
         let _ = self.with_instance_mut(|instance| {
-            supersample = instance.supersample;
+            sampling = instance.sampling;
             frame_observer.clone_from(&instance.frame_observer);
             // Check for canvas resize.
             let canvas_width = instance.canvas.client_width();
             let canvas_height = instance.canvas.client_height();
             // Changes via user zooming.
             let device_pixel_ratio = instance.window.device_pixel_ratio() * instance.render_scale;
-            let device_pixel_ratio = device_pixel_ratio
-                * supersample_scale(instance.stage_sample_count.get(), device_pixel_ratio);
+            let sample_count = instance.stage_sample_count.get();
+            let device_pixel_ratio = match sampling {
+                Sampling::Supersample => {
+                    device_pixel_ratio * supersample_scale(sample_count, device_pixel_ratio)
+                }
+                Sampling::Multisample | Sampling::DevicePixels => device_pixel_ratio,
+            };
+            if sampling == Sampling::DevicePixels && sample_count > 1 {
+                let single = f64::from(sample_count).sqrt() <= device_pixel_ratio;
+                if single != instance.single_sample {
+                    instance.single_sample = single;
+                    single_sample = Some(single);
+                }
+            }
             if instance.canvas_width != canvas_width
                 || instance.canvas_height != canvas_height
                 || (instance.device_pixel_ratio - device_pixel_ratio).abs() >= f64::EPSILON
@@ -1332,6 +1347,19 @@ impl RuffleHandle {
                 core.handle_event(event);
             }
 
+            #[cfg(any(feature = "webgpu", feature = "wgpu-webgl"))]
+            if let Some(single) = single_sample
+                && let Some(renderer) = <dyn Any>::downcast_mut::<
+                    ruffle_render_wgpu::backend::WgpuRenderBackend<
+                        ruffle_render_wgpu::target::SwapChainTarget,
+                    >,
+                >(core.renderer_mut())
+            {
+                renderer.set_max_sample_count(if single { 1 } else { u32::MAX });
+            }
+            #[cfg(not(any(feature = "webgpu", feature = "wgpu-webgl")))]
+            let _ = single_sample;
+
             if let Some((ref canvas, viewport_width, viewport_height, device_pixel_ratio)) =
                 new_dimensions
             {
@@ -1359,7 +1387,7 @@ impl RuffleHandle {
             next_frame_in = core
                 .is_playing()
                 .then(|| core.time_til_next_frame().as_secs_f64() * 1000.0);
-            if supersample {
+            if sampling != Sampling::Multisample {
                 stage_sample_count = core.quality().sample_count();
             }
         });

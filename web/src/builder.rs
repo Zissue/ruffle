@@ -555,7 +555,13 @@ impl RuffleInstanceBuilder {
                         .await
                         {
                             Ok(renderer) => {
-                                return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
+                                // Every multisampled render pass reseeds and resolves the whole frame.
+                                return Ok(CreatedRenderer::new(
+                                    renderer,
+                                    canvas,
+                                    Sampling::DevicePixels,
+                                    failures,
+                                ));
                             }
                             Err(error) => {
                                 tracing::error!("Error creating wgpu webgpu renderer: {}", error);
@@ -585,7 +591,12 @@ impl RuffleInstanceBuilder {
                             // On WebGL, every render pass resolves its samples with a full-size
                             // blit, so the player supersamples instead.
                             renderer.set_max_sample_count(1);
-                            return Ok(CreatedRenderer::new(renderer, canvas, true, failures));
+                            return Ok(CreatedRenderer::new(
+                                renderer,
+                                canvas,
+                                Sampling::Supersample,
+                                failures,
+                            ));
                         }
                         Err(error) => {
                             tracing::error!("Error creating wgpu webgl renderer: {}", error);
@@ -607,7 +618,12 @@ impl RuffleInstanceBuilder {
                         self.quality,
                     ) {
                         Ok(renderer) => {
-                            return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
+                            return Ok(CreatedRenderer::new(
+                                renderer,
+                                canvas,
+                                Sampling::Multisample,
+                                failures,
+                            ));
                         }
                         Err(error) => {
                             tracing::error!("Error creating WebGL renderer: {}", error);
@@ -626,7 +642,12 @@ impl RuffleInstanceBuilder {
                     match ruffle_render_canvas::WebCanvasRenderBackend::new(&canvas, is_transparent)
                     {
                         Ok(renderer) => {
-                            return Ok(CreatedRenderer::new(renderer, canvas, false, failures));
+                            return Ok(CreatedRenderer::new(
+                                renderer,
+                                canvas,
+                                Sampling::Multisample,
+                                failures,
+                            ));
                         }
                         Err(error) => {
                             tracing::error!("Error creating canvas renderer: {}", error);
@@ -689,7 +710,7 @@ impl RuffleInstanceBuilder {
         let CreatedRenderer {
             renderer,
             canvas,
-            supersample,
+            sampling,
             failures: renderer_failures,
         } = self.create_renderer().await?;
 
@@ -759,16 +780,26 @@ impl RuffleInstanceBuilder {
             core,
             canvas,
             trace_observer,
-            supersample,
+            sampling,
             renderer_failures,
         })
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Sampling {
+    Multisample,
+    /// One sample per pixel, on a canvas drawn finer than the display.
+    Supersample,
+    /// One sample per pixel while the display's own pixels give the quality's
+    /// samples, and multisampling otherwise.
+    DevicePixels,
+}
+
 pub struct CreatedRenderer {
     renderer: Box<dyn RenderBackend>,
     canvas: HtmlCanvasElement,
-    supersample: bool,
+    sampling: Sampling,
     failures: Vec<String>,
 }
 
@@ -776,13 +807,13 @@ impl CreatedRenderer {
     fn new(
         renderer: impl RenderBackend + 'static,
         canvas: HtmlCanvasElement,
-        supersample: bool,
+        sampling: Sampling,
         failures: Vec<String>,
     ) -> Self {
         Self {
             renderer: Box::new(renderer),
             canvas,
-            supersample,
+            sampling,
             failures,
         }
     }
@@ -792,6 +823,6 @@ pub struct BuiltPlayer {
     pub core: Arc<Mutex<Player>>,
     pub canvas: HtmlCanvasElement,
     pub trace_observer: Rc<RefCell<JsValue>>,
-    pub supersample: bool,
+    pub sampling: Sampling,
     pub renderer_failures: Vec<String>,
 }
