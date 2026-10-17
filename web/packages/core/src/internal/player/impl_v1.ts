@@ -64,6 +64,14 @@ export class PlayerV1Impl implements PlayerV1 {
         this.#inner.renderScale = value;
     }
 
+    get renderingSuspended(): boolean {
+        return this.#inner.renderingSuspended;
+    }
+
+    set renderingSuspended(value: boolean) {
+        this.#inner.renderingSuspended = value;
+    }
+
     get fullscreenEnabled(): boolean {
         return this.#inner.fullscreenEnabled;
     }

@@ -113,6 +113,24 @@ export interface PlayerV1 {
     set renderScale(value: number);
 
     /**
+     * Returns whether the player has stopped drawing the movie.
+     *
+     * @returns True if the movie keeps running without being drawn.
+     */
+    get renderingSuspended(): boolean;
+
+    /**
+     * Stops or restarts drawing the movie, which keeps running either way.
+     *
+     * A page can suspend rendering while the player is covered or otherwise
+     * out of sight, to save the work of drawing it. The player draws the
+     * current frame at the next display frame after rendering restarts.
+     *
+     * @param value True to stop drawing, false to draw again.
+     */
+    set renderingSuspended(value: boolean);
+
+    /**
      * Checks if this player is allowed to be fullscreen by the browser.
      *
      * @returns True if you may call {@link requestFullscreen}.

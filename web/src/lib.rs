@@ -131,6 +131,7 @@ struct RuffleInstance {
     timeout_handler: Option<Closure<dyn FnMut()>>,
     scheduled_tick: Cell<Option<ScheduledTick>>,
     background_tick_mode: bool,
+    rendering: Rendering,
     render_scale: f64,
     sampling: Sampling,
     single_sample: bool,
@@ -386,6 +387,19 @@ impl RuffleHandle {
         let _ = self.with_core_mut(|core| core.set_volume(value));
     }
 
+    pub fn set_rendering_suspended(&self, value: bool) {
+        let _ = self.with_instance_mut(|instance| {
+            instance.rendering = match (value, instance.rendering) {
+                (true, _) => Rendering::Suspended,
+                (false, Rendering::Suspended) => {
+                    instance.wake();
+                    Rendering::Resumed
+                }
+                (false, current) => current,
+            };
+        });
+    }
+
     pub fn render_scale(&self) -> f64 {
         self.with_instance(|instance| instance.render_scale)
             .unwrap_or(1.0)
@@ -602,6 +616,7 @@ impl RuffleHandle {
             timeout_handler: None,
             scheduled_tick: Cell::new(None),
             background_tick_mode: false,
+            rendering: Rendering::Running,
             render_scale: 1.0,
             sampling: player.sampling,
             single_sample: false,
@@ -1214,8 +1229,13 @@ impl RuffleHandle {
         let mut single_sample = None;
         let mut stage_sample_count = 1;
         let mut frame_observer = None;
+        let mut rendering = Rendering::Running;
         let _ = self.with_instance_mut(|instance| {
             sampling = instance.sampling;
+            rendering = instance.rendering;
+            if rendering == Rendering::Resumed {
+                instance.rendering = Rendering::Running;
+            }
             frame_observer.clone_from(&instance.frame_observer);
             // Check for canvas resize.
             let canvas_width = instance.canvas.client_width();
@@ -1377,8 +1397,12 @@ impl RuffleHandle {
             core.tick(FloatDuration::from_millis(dt));
             timings.ticked();
 
-            // Render if the core signals a new frame, or if we resized.
-            if core.needs_render() || new_dimensions.is_some() {
+            let render = match rendering {
+                Rendering::Running => core.needs_render() || new_dimensions.is_some(),
+                Rendering::Suspended => false,
+                Rendering::Resumed => true,
+            };
+            if render {
                 core.render();
                 timings.rendered();
             }
@@ -1447,6 +1471,13 @@ const DISPLAY_FRAME_MS: f64 = 1000.0 / 60.0;
 
 // Canvas resizes and gamepads are only noticed in a tick.
 const MAX_SLEEP_MS: f64 = 50.0;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Rendering {
+    Running,
+    Suspended,
+    Resumed,
+}
 
 #[derive(Clone, Copy)]
 enum ScheduledTick {

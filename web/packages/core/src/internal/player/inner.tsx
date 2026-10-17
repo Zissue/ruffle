@@ -210,6 +210,7 @@ export class InnerPlayer {
 
     private volumeSettings: VolumeControls;
     private renderScaleSetting = 1.0;
+    private renderingSuspendedSetting = false;
     private readonly debugPlayerInfo: () => string;
     protected readonly onCallbackAvailable: (name: string) => void;
     private readonly onFSCommand: ((command: string, args: string) => void)[] =
@@ -782,6 +783,7 @@ export class InnerPlayer {
             throw e;
         });
         this.instance!.set_render_scale(this.renderScaleSetting);
+        this.instance!.set_rendering_suspended(this.renderingSuspendedSetting);
         this.frameStats.setInstance(this.instance);
 
         this.rendererDebugInfo = this.instance!.renderer_debug_info();
@@ -1121,6 +1123,15 @@ export class InnerPlayer {
     set renderScale(value: number) {
         this.renderScaleSetting = value;
         this.instance?.set_render_scale(value);
+    }
+
+    get renderingSuspended(): boolean {
+        return this.renderingSuspendedSetting;
+    }
+
+    set renderingSuspended(value: boolean) {
+        this.renderingSuspendedSetting = value;
+        this.instance?.set_rendering_suspended(value);
     }
 
     /**
