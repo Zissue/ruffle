@@ -1,0 +1,75 @@
+[
+{
+"type": "MouseMove",
+"pos": [
+45,
+45
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseDown",
+"pos": [
+45,
+45
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseUp",
+"pos": [
+45,
+45
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+46,
+45
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+300,
+300
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "Wait"
+}
+]

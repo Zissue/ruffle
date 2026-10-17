@@ -1600,7 +1600,11 @@ impl Player {
                 || context.mouse_data.hovered.is_some_and(|hovered| {
                     let hovered = hovered.as_displayobject();
                     !hovered.visible()
-                        || (!hovered.movie().is_action_script_3() && hovered.avm1_removed())
+                        || if hovered.movie().is_action_script_3() {
+                            !hovered.is_on_stage(context)
+                        } else {
+                            hovered.avm1_removed()
+                        }
                 });
             let new_over_object = if mouse_in_stage && needs_pick {
                 run_mouse_pick(context, true)
@@ -1640,7 +1644,10 @@ impl Player {
 
                 // Ensure that hover is canceled when an object disappears,
                 // even if the mouse was idle.
-                if !hovered.as_displayobject().visible() {
+                let hovered = hovered.as_displayobject();
+                if !hovered.visible()
+                    || (hovered.movie().is_action_script_3() && !hovered.is_on_stage(context))
+                {
                     skip_mouse_hover = false;
                 }
             }

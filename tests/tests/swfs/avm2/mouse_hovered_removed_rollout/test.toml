@@ -1,0 +1,4 @@
+num_ticks = 20
+
+[player_options]
+mode = "Release"

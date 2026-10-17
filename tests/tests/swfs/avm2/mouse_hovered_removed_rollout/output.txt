@@ -1,0 +1,18 @@
+mouseMove to 45 on button
+rollOver on button (target button, related null)
+rollOver on row (target row, related null)
+mouseOver on button (target button, related null)
+mouseOver on row (target button, related null)
+click: removing row
+frame 1 after the click
+mouseOut on button (target button, related under)
+mouseOut on row (target button, related under)
+rollOut on button (target button, related under)
+rollOut on row (target row, related under)
+rollOver on under (target under, related button)
+mouseOver on under (target under, related button)
+frame 2 after the click
+mouseMove to 46 on under
+mouseMove to 300 on stage
+mouseOut on under (target under, related null)
+rollOut on under (target under, related null)
