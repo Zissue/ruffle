@@ -1,0 +1,77 @@
+setSelection(30, 30) from scrollH 0: caret=30 scrollH=240 maxScrollH=248
+setSelection(0, 0) from scrollH 240: caret=0 scrollH=0 maxScrollH=248
+setSelection(8, 8) from scrollH 0: caret=8 scrollH=0 maxScrollH=248
+setSelection(9, 9) from scrollH 0: caret=9 scrollH=24 maxScrollH=248
+setSelection(12, 12) from scrollH 24: caret=12 scrollH=48 maxScrollH=248
+setSelection(5, 15) from scrollH 48: caret=15 scrollH=96 maxScrollH=248
+setSelection(15, 5) from scrollH 96: caret=5 scrollH=48 maxScrollH=248
+setSelection(29, 29) from scrollH 30: caret=29 scrollH=222 maxScrollH=248
+setSelection(1, 1) from scrollH 30: caret=1 scrollH=6 maxScrollH=248
+setSelection(8, 8) from scrollH 100: caret=8 scrollH=76 maxScrollH=248
+width 95
+setSelection(8, 8) from scrollH 0: caret=8 scrollH=22 maxScrollH=252
+setSelection(13, 13) from scrollH 22: caret=13 scrollH=68 maxScrollH=252
+width 96
+setSelection(8, 8) from scrollH 0: caret=8 scrollH=0 maxScrollH=251
+setSelection(13, 13) from scrollH 0: caret=13 scrollH=69 maxScrollH=251
+setSelection(30, 30) from scrollH 76: caret=30 scrollH=244 maxScrollH=248
+text shortened: scrollH=199 maxScrollH=199
+text lengthened: scrollH=199 maxScrollH=248
+setSelection(30, 30) from scrollH 0: caret=30 scrollH=224 maxScrollH=224
+setSelection(30, 30) from scrollH 0: caret=30 scrollH=0 maxScrollH=248
+setSelection(30, 30) from scrollH 0: caret=30 scrollH=240 maxScrollH=248
+cleared: scrollH=0 maxScrollH=0
+change: caret=1 scrollH=0 maxScrollH=0
+change: caret=2 scrollH=0 maxScrollH=0
+change: caret=3 scrollH=0 maxScrollH=0
+change: caret=4 scrollH=0 maxScrollH=0
+change: caret=5 scrollH=0 maxScrollH=0
+change: caret=6 scrollH=0 maxScrollH=0
+change: caret=7 scrollH=0 maxScrollH=3
+change: caret=8 scrollH=0 maxScrollH=15
+change: caret=9 scrollH=0 maxScrollH=21
+change: caret=10 scrollH=24 maxScrollH=26
+change: caret=11 scrollH=24 maxScrollH=36
+change: caret=12 scrollH=24 maxScrollH=42
+change: caret=13 scrollH=48 maxScrollH=60
+change: caret=14 scrollH=72 maxScrollH=73
+change: caret=15 scrollH=72 maxScrollH=85
+change: caret=16 scrollH=96 maxScrollH=97
+change: caret=17 scrollH=96 maxScrollH=109
+change: caret=18 scrollH=96 maxScrollH=117
+change: caret=19 scrollH=120 maxScrollH=127
+change: caret=20 scrollH=120 maxScrollH=134
+change: caret=21 scrollH=144 maxScrollH=146
+change: caret=22 scrollH=144 maxScrollH=157
+change: caret=23 scrollH=168 maxScrollH=172
+change: caret=24 scrollH=168 maxScrollH=183
+change: caret=25 scrollH=192 maxScrollH=193
+change: caret=26 scrollH=192 maxScrollH=202
+keyUp 36: caret=0 scrollH=0 maxScrollH=202
+keyUp 35: caret=26 scrollH=192 maxScrollH=202
+keyUp 37: caret=25 scrollH=192 maxScrollH=202
+keyUp 37: caret=24 scrollH=192 maxScrollH=202
+keyUp 37: caret=23 scrollH=192 maxScrollH=202
+keyUp 37: caret=22 scrollH=192 maxScrollH=202
+keyUp 37: caret=21 scrollH=192 maxScrollH=202
+keyUp 37: caret=20 scrollH=192 maxScrollH=202
+keyUp 37: caret=19 scrollH=192 maxScrollH=202
+keyUp 37: caret=18 scrollH=168 maxScrollH=202
+keyUp 37: caret=17 scrollH=168 maxScrollH=202
+keyUp 37: caret=16 scrollH=168 maxScrollH=202
+keyUp 37: caret=15 scrollH=144 maxScrollH=202
+keyUp 37: caret=14 scrollH=144 maxScrollH=202
+change: caret=15 scrollH=144 maxScrollH=213
+change: caret=14 scrollH=144 maxScrollH=202
+change: caret=13 scrollH=120 maxScrollH=190
+change: caret=12 scrollH=96 maxScrollH=171
+keyUp 35: caret=24 scrollH=168 maxScrollH=171
+change: caret=23 scrollH=168 maxScrollH=162
+change: caret=22 scrollH=168 maxScrollH=152
+change: caret=21 scrollH=168 maxScrollH=141
+change: caret=20 scrollH=168 maxScrollH=126
+change: caret=19 scrollH=168 maxScrollH=115
+change: caret=18 scrollH=168 maxScrollH=103
+change: caret=17 scrollH=168 maxScrollH=96
+change: caret=16 scrollH=86 maxScrollH=86
+change: caret=15 scrollH=86 maxScrollH=78

@@ -1,0 +1,952 @@
+[
+{
+"type": "MouseMove",
+"pos": [
+50,
+25
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseDown",
+"pos": [
+50,
+25
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseUp",
+"pos": [
+50,
+25
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "a"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "a"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "a"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "b"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "b"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "b"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "c"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "c"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "c"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "d"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "d"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "d"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "e"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "e"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "e"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "f"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "f"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "f"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "g"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "g"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "g"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "h"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "h"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "h"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "i"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "i"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "i"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "j"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "j"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "j"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "k"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "k"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "k"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "l"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "l"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "l"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "m"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "m"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "m"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "n"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "n"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "n"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "o"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "o"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "o"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "p"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "p"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "p"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "q"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "q"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "q"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "r"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "r"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "r"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "s"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "s"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "s"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "t"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "t"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "t"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "u"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "u"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "u"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "v"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "v"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "v"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "w"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "w"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "w"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "x"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "x"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "x"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "y"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "y"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "y"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "z"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "z"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "z"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Home"
+},
+{
+"type": "TextControl",
+"code": "MoveLeftLine"
+},
+{
+"type": "KeyUp",
+"key": "Home"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "End"
+},
+{
+"type": "TextControl",
+"code": "MoveRightLine"
+},
+{
+"type": "KeyUp",
+"key": "End"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "ArrowLeft"
+},
+{
+"type": "TextControl",
+"code": "MoveLeft"
+},
+{
+"type": "KeyUp",
+"key": "ArrowLeft"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": {
+"Char": "x"
+}
+},
+{
+"type": "TextInput",
+"codepoint": "x"
+},
+{
+"type": "KeyUp",
+"key": {
+"Char": "x"
+}
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "End"
+},
+{
+"type": "TextControl",
+"code": "MoveRightLine"
+},
+{
+"type": "KeyUp",
+"key": "End"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+},
+{
+"type": "KeyDown",
+"key": "Backspace"
+},
+{
+"type": "TextControl",
+"code": "Backspace"
+},
+{
+"type": "KeyUp",
+"key": "Backspace"
+},
+{
+"type": "Wait"
+}
+]

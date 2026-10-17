@@ -463,6 +463,7 @@ impl<'gc> EditText<'gc> {
         }
 
         self.relayout(context);
+        self.clamp_hscroll();
     }
 
     pub fn html_text(self) -> WString {
@@ -492,6 +493,7 @@ impl<'gc> EditText<'gc> {
         if self.is_effectively_html() {
             self.0.parse_html(text);
             self.relayout(context);
+            self.clamp_hscroll();
         } else {
             self.set_text(text, context);
         }
@@ -594,6 +596,7 @@ impl<'gc> EditText<'gc> {
     pub fn set_word_wrap(self, is_word_wrap: bool, context: &mut UpdateContext<'gc>) {
         self.set_flag(EditTextFlag::WORD_WRAP, is_word_wrap);
         self.relayout(context);
+        self.clamp_hscroll();
     }
 
     pub fn autosize(self) -> AutoSizeMode {
@@ -904,8 +907,6 @@ impl<'gc> EditText<'gc> {
         drop(text_spans);
 
         unlock!(Gc::write(context.gc(), self.0), EditTextData, layout).replace(new_layout);
-        // reset scroll
-        self.0.hscroll.set(0.0);
         self.0.scroll.set(1);
 
         let text_size = self.0.layout.borrow().text_size();
@@ -1508,6 +1509,43 @@ impl<'gc> EditText<'gc> {
         }
     }
 
+    pub fn scroll_to_caret(self) {
+        let Some(TextSelection { to: caret, .. }) = self.selection() else {
+            return;
+        };
+        if !self.is_selectable() || self.is_word_wrap() {
+            return;
+        }
+
+        let layout = self.0.layout.borrow();
+        let caret_x = layout.char_bounds(caret).map(|b| b.x_min).or_else(|| {
+            let before = layout.char_bounds(caret.checked_sub(1)?)?;
+            Some(before.x_max)
+        });
+        drop(layout);
+        let Some(caret_x) = caret_x else {
+            return;
+        };
+        let caret_x = self.layout_width_to_local_width(caret_x).to_pixels();
+        let visible_width = (self.0.bounds.get().width() - Self::GUTTER * 2)
+            .trunc_to_pixel()
+            .to_pixels();
+        if visible_width <= 0.0 {
+            return;
+        }
+        let step = visible_width / 4.0;
+
+        let hscroll = self.0.hscroll.get();
+        let new_hscroll = if caret_x < hscroll {
+            hscroll - step * ((hscroll - caret_x) / step).ceil()
+        } else if caret_x - hscroll > visible_width {
+            hscroll + step * ((caret_x - hscroll - visible_width) / step).ceil()
+        } else {
+            return;
+        };
+        self.set_hscroll(new_hscroll.clamp(0.0, self.maxhscroll()));
+    }
+
     /// Calculate and return the [`TextSelection`] at the given position
     /// using the given selection mode.
     fn calculate_selection_at(self, position: usize, mode: TextSelectionMode) -> TextSelection {
@@ -1550,12 +1588,18 @@ impl<'gc> EditText<'gc> {
     }
 
     pub fn hscroll(self) -> f64 {
-        self.0.hscroll.get()
+        self.0.hscroll.get().trunc()
     }
 
     pub fn set_hscroll(self, hscroll: f64) {
         self.0.hscroll.set(hscroll);
         self.invalidate_cached_bitmap();
+    }
+
+    fn clamp_hscroll(self) {
+        self.0
+            .hscroll
+            .set(self.0.hscroll.get().min(self.maxhscroll()));
     }
 
     pub fn scroll(self) -> usize {
@@ -1825,6 +1869,7 @@ impl<'gc> EditText<'gc> {
                 }
             }
         }
+        self.scroll_to_caret();
         if changed {
             let mut activation = Avm1Activation::from_nothing(
                 context,
@@ -1873,6 +1918,7 @@ impl<'gc> EditText<'gc> {
             }
             ImeEvent::Commit(text) => self.text_input(text, context),
         };
+        self.scroll_to_caret();
     }
 
     fn ensure_ime_started(self, context: &mut UpdateContext<'gc>) -> ImeData {
@@ -2088,6 +2134,7 @@ impl<'gc> EditText<'gc> {
         self.replace_text(selection.start(), selection.end(), text, context);
         let new_pos = selection.start() + text.len();
         self.set_selection(Some(TextSelection::for_position(new_pos)));
+        self.scroll_to_caret();
 
         let mut activation = Avm1Activation::from_nothing(
             context,
@@ -2663,6 +2710,7 @@ impl<'gc> TDisplayObject<'gc> for EditText<'gc> {
         bounds.set(bounds.get().with_width(Twips::from_pixels(value)));
         self.base().set_transformed_by_script(true);
         self.relayout(context);
+        self.clamp_hscroll();
     }
 
     fn height(self) -> f64 {
