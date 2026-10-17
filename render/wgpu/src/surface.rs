@@ -20,7 +20,7 @@ use target::CommandTarget;
 use tracing::instrument;
 use wgpu_profiler::Scope;
 
-pub use crate::surface::commands::LayerRef;
+pub use crate::surface::commands::{ChunkLists, LayerRef};
 
 use self::commands::ChunkBlendMode;
 
@@ -128,7 +128,7 @@ impl Surface {
         let mut num_masks = 0;
         let mut mask_state = MaskState::NoMask;
         let mut parent_copy: Option<wgpu::BindGroup> = None;
-        let chunks = chunk_blends(
+        let mut lists = chunk_blends(
             commands,
             descriptors,
             staging_belt,
@@ -145,20 +145,27 @@ impl Surface {
             texture_pool,
         );
 
-        for chunk in chunks {
+        for chunk in lists.chunks.drain(..) {
             match chunk {
                 Chunk::Draw {
-                    chunk,
+                    commands,
                     needs_stencil,
                     transforms,
-                    vertices,
+                    quads,
                 } => {
-                    transforms.copy_to(staging_belt, draw_encoder, &dynamic_transforms.buffer);
-                    vertices.copy_to(
+                    write_buffer(
+                        staging_belt,
+                        draw_encoder,
+                        &dynamic_transforms.buffer,
+                        bytemuck::cast_slice(&lists.transforms[transforms]),
+                    );
+                    write_buffer(
                         staging_belt,
                         draw_encoder,
                         &dynamic_transforms.vertex_buffer,
+                        bytemuck::cast_slice(&lists.quads[quads]),
                     );
+                    let chunk = &lists.commands[commands];
                     let masks_after =
                         chunk
                             .iter()
@@ -209,7 +216,7 @@ impl Surface {
                         parent_copy.as_ref(),
                     );
 
-                    for command in &chunk {
+                    for command in chunk {
                         if cfg!(feature = "profile-with-tracy") {
                             renderer.execute(&mut render_pass.scope(command.name()), command);
                         } else {
@@ -477,6 +484,8 @@ impl Surface {
             );
         }
 
+        dynamic_transforms.return_lists(lists);
+
         // If nothing happened, ensure it's cleared so we don't operate on garbage data
         target.ensure_cleared(draw_encoder);
         target.finish(draw_encoder);
@@ -494,5 +503,18 @@ impl Surface {
 
     pub fn size(&self) -> wgpu::Extent3d {
         self.size
+    }
+}
+
+fn write_buffer(
+    staging_belt: &mut wgpu::util::StagingBelt,
+    encoder: &mut wgpu::CommandEncoder,
+    buffer: &wgpu::Buffer,
+    data: &[u8],
+) {
+    if let Some(size) = wgpu::BufferSize::new(data.len() as u64) {
+        staging_belt
+            .write_buffer(encoder, buffer, 0, size)
+            .copy_from_slice(data);
     }
 }

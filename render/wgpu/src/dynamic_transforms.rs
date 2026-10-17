@@ -1,5 +1,7 @@
 use crate::descriptors::Descriptors;
+use crate::surface::ChunkLists;
 use crate::{PosUvVertex, Transforms};
+use std::cell::RefCell;
 use std::mem;
 
 const ESTIMATED_OBJECTS_PER_CHUNK: u64 = 200;
@@ -8,6 +10,9 @@ pub struct DynamicTransforms {
     pub buffer: wgpu::Buffer,
     pub vertex_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
+    /// One for each surface being drawn: a blend layer's surface is drawn
+    /// while its parent's lists are in use.
+    lists: RefCell<Vec<ChunkLists>>,
 }
 
 pub fn transforms_per_draw(limits: &wgpu::Limits) -> u64 {
@@ -44,6 +49,16 @@ impl DynamicTransforms {
             buffer,
             bind_group,
             vertex_buffer,
+            lists: RefCell::default(),
         }
+    }
+
+    pub fn take_lists(&self) -> ChunkLists {
+        self.lists.borrow_mut().pop().unwrap_or_default()
+    }
+
+    pub fn return_lists(&self, mut lists: ChunkLists) {
+        lists.clear();
+        self.lists.borrow_mut().push(lists);
     }
 }

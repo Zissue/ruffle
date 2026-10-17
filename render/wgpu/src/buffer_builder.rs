@@ -1,6 +1,5 @@
 use bytemuck::{AnyBitPattern, NoUninit};
 use std::ops::Range;
-use wgpu::BufferAddress;
 
 pub struct BufferBuilder {
     inner: Vec<u8>,
@@ -23,10 +22,6 @@ impl BufferBuilder {
             },
             limit: limits.max_buffer_size,
         }
-    }
-
-    pub fn set_buffer_limit(&mut self, limit: u64) {
-        self.limit = limit;
     }
 
     pub fn add<T: NoUninit + AnyBitPattern>(
@@ -57,18 +52,5 @@ impl BufferBuilder {
 
     pub fn bytes_mut(&mut self) -> &mut [u8] {
         &mut self.inner
-    }
-
-    pub fn copy_to(
-        self,
-        staging_belt: &mut wgpu::util::StagingBelt,
-        encoder: &mut wgpu::CommandEncoder,
-        buffer: &wgpu::Buffer,
-    ) {
-        if let Some(length) = wgpu::BufferSize::new(self.inner.len() as u64) {
-            let mut view =
-                staging_belt.write_buffer(encoder, buffer, BufferAddress::default(), length);
-            view.copy_from_slice(&self.inner);
-        }
     }
 }

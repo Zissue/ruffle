@@ -1,7 +1,6 @@
 use super::target::PoolOrArcTexture;
 use crate::backend::RenderTargetMode;
 use crate::blend::{BlendType, ComplexBlend, DirectBlend};
-use crate::buffer_builder::BufferBuilder;
 use crate::buffer_pool::TexturePool;
 use crate::dynamic_transforms::DynamicTransforms;
 use crate::mesh::{DrawType, Mesh, as_mesh};
@@ -23,6 +22,7 @@ use ruffle_render::transform::Transform;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::mem;
+use std::ops::Range;
 use std::sync::Arc;
 use swf::{BlendMode, Color, ColorTransform, Twips};
 use wgpu::Backend;
@@ -576,10 +576,10 @@ impl<'encoder> CommandRenderer<'encoder> {
 
 pub enum Chunk {
     Draw {
-        chunk: Vec<DrawCommand>,
+        commands: Range<usize>,
         needs_stencil: bool,
-        transforms: BufferBuilder,
-        vertices: BufferBuilder,
+        transforms: Range<usize>,
+        quads: Range<usize>,
     },
     Blend {
         texture: PoolOrArcTexture,
@@ -590,6 +590,38 @@ pub enum Chunk {
     CopyParent {
         regions: Vec<PixelRegion>,
     },
+}
+
+#[derive(Default)]
+pub struct ChunkLists {
+    pub chunks: Vec<Chunk>,
+    pub commands: Vec<DrawCommand>,
+    pub transforms: Vec<Transforms>,
+    pub quads: Vec<[PosUvVertex; 4]>,
+}
+
+impl ChunkLists {
+    fn lengths(&self) -> ListLengths {
+        ListLengths {
+            commands: self.commands.len(),
+            transforms: self.transforms.len(),
+            quads: self.quads.len(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.chunks.clear();
+        self.commands.clear();
+        self.transforms.clear();
+        self.quads.clear();
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct ListLengths {
+    commands: usize,
+    transforms: usize,
+    quads: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1127,7 +1159,7 @@ pub fn chunk_blends<'encoder, 'global: 'encoder>(
     height: u32,
     nearest_layer: LayerRef,
     texture_pool: &'encoder mut TexturePool,
-) -> Vec<Chunk> {
+) -> ChunkLists {
     WgpuCommandHandler::new(
         descriptors,
         staging_belt,
@@ -1156,12 +1188,10 @@ struct WgpuCommandHandler<'encoder, 'global: 'encoder> {
     texture_pool: &'encoder mut TexturePool,
     emulate_lines: bool,
 
-    result: Vec<Chunk>,
-    current: Vec<DrawCommand>,
-    /// The scissor `current` leaves set, if it isn't the whole target.
+    lists: ChunkLists,
+    chunk_start: ListLengths,
+    /// The scissor the chunk being built leaves set, if it isn't the whole target.
     scissor: Option<PixelRegion>,
-    transforms: BufferBuilder,
-    vertices: BufferBuilder,
     needs_stencil: bool,
     num_masks: i32,
     batch: DrawBatch,
@@ -1185,9 +1215,6 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
         nearest_layer: LayerRef<'encoder>,
         texture_pool: &'encoder mut TexturePool,
     ) -> Self {
-        let transforms = Self::new_transforms(descriptors, dynamic_transforms);
-        let vertices = Self::new_vertices(descriptors, dynamic_transforms);
-
         // DirectX does support drawing lines, but it's very inconsistent.
         // With MSAA, lines have 1.4px thickness, which makes them too thick.
         // Without MSAA, lines have 1px thickness, but their placement is sometimes off.
@@ -1206,11 +1233,9 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
             texture_pool,
             emulate_lines,
 
-            result: vec![],
-            current: vec![],
+            lists: dynamic_transforms.take_lists(),
+            chunk_start: ListLengths::default(),
             scissor: None,
-            transforms,
-            vertices,
             needs_stencil: false,
             num_masks: 0,
             batch: DrawBatch::default(),
@@ -1219,40 +1244,22 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
         }
     }
 
-    fn new_transforms(
-        descriptors: &'encoder Descriptors,
-        dynamic_transforms: &'encoder DynamicTransforms,
-    ) -> BufferBuilder {
-        let mut transforms = BufferBuilder::new(&descriptors.limits, 0);
-        transforms.set_buffer_limit(dynamic_transforms.buffer.size());
-        transforms
-    }
-
-    fn new_vertices(
-        descriptors: &'encoder Descriptors,
-        dynamic_transforms: &'encoder DynamicTransforms,
-    ) -> BufferBuilder {
-        let mut vertices = BufferBuilder::new(&descriptors.limits, 0);
-        vertices.set_buffer_limit(dynamic_transforms.vertex_buffer.size());
-        vertices
-    }
-
     /// Replaces every blend with a RenderBitmap, with the subcommands rendered out to a temporary texture
     /// Every complex blend will be its own item, but every other draw will be chunked together
-    fn chunk_blends(&mut self, mut commands: CommandList) -> Vec<Chunk> {
+    fn chunk_blends(&mut self, mut commands: CommandList) -> ChunkLists {
         self.draw_layer_atlas(&mut commands);
         commands.execute(self);
         self.finish_masked_block();
         self.flush_batch();
         self.flush_current();
-        mem::take(&mut self.result)
+        mem::take(&mut self.lists)
     }
 
     fn flush_batch(&mut self) {
         for level in self.batch.take_levels() {
             if !level.copies.is_empty() {
                 self.flush_current();
-                self.result.push(Chunk::CopyParent {
+                self.lists.chunks.push(Chunk::CopyParent {
                     regions: level.copies,
                 });
             }
@@ -1261,7 +1268,7 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
                     BatchItem::Draw(draw) => self.push_pending(draw),
                     BatchItem::Blend(chunk) => {
                         self.flush_current();
-                        self.result.push(chunk);
+                        self.lists.chunks.push(chunk);
                     }
                     BatchItem::Masked(items) => {
                         self.needs_stencil = true;
@@ -1270,17 +1277,17 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
                                 MaskedItem::Draw(draw) => self.push_pending(draw),
                                 MaskedItem::Mask(command) => {
                                     self.set_scissor(None);
-                                    self.current.push(command);
+                                    self.lists.commands.push(command);
                                 }
                                 MaskedItem::Copy(region) => {
                                     self.flush_current();
-                                    self.result.push(Chunk::CopyParent {
+                                    self.lists.chunks.push(Chunk::CopyParent {
                                         regions: vec![region],
                                     });
                                 }
                                 MaskedItem::Blend(chunk) => {
                                     self.flush_current();
-                                    self.result.push(chunk);
+                                    self.lists.chunks.push(chunk);
                                 }
                             }
                         }
@@ -1294,7 +1301,7 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
         let mut command = draw.command;
         self.push_draw(
             draw.transform,
-            draw.vertices.as_ref().map(|v| &v[..]),
+            draw.vertices,
             |instance_index, vertex_offset| {
                 command.set_indices(instance_index, vertex_offset);
                 command
@@ -1302,15 +1309,15 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
         );
         // After `push_draw`, which may have started a new chunk, so the scissor is in the draw's.
         if draw.scissor != self.scissor {
-            let command = self.current.pop().expect("push_draw adds the draw");
+            let command = self.lists.commands.pop().expect("push_draw adds the draw");
             self.set_scissor(draw.scissor);
-            self.current.push(command);
+            self.lists.commands.push(command);
         }
     }
 
     fn set_scissor(&mut self, scissor: Option<PixelRegion>) {
         if scissor != self.scissor {
-            self.current.push(DrawCommand::Scissor(
+            self.lists.commands.push(DrawCommand::Scissor(
                 scissor.unwrap_or_else(|| PixelRegion::for_whole_size(self.width, self.height)),
             ));
             self.scissor = scissor;
@@ -1464,21 +1471,17 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
     }
 
     fn flush_current(&mut self) {
-        if self.current.is_empty() {
+        let end = self.lists.lengths();
+        if end.commands == self.chunk_start.commands {
             return;
         }
         self.scissor = None;
-        self.result.push(Chunk::Draw {
-            chunk: mem::take(&mut self.current),
+        let start = mem::replace(&mut self.chunk_start, end);
+        self.lists.chunks.push(Chunk::Draw {
+            commands: start.commands..end.commands,
             needs_stencil: self.needs_stencil,
-            transforms: mem::replace(
-                &mut self.transforms,
-                Self::new_transforms(self.descriptors, self.dynamic_transforms),
-            ),
-            vertices: mem::replace(
-                &mut self.vertices,
-                Self::new_vertices(self.descriptors, self.dynamic_transforms),
-            ),
+            transforms: start.transforms..end.transforms,
+            quads: start.quads..end.quads,
         });
     }
 
@@ -1552,33 +1555,38 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
     fn push_draw(
         &mut self,
         transform: Transforms,
-        vertices: Option<&[PosUvVertex]>,
+        quad: Option<[PosUvVertex; 4]>,
         command_builder: impl FnOnce(u32, Option<wgpu::BufferAddress>) -> DrawCommand,
     ) {
-        if let (Ok(transform_range), Ok(vertices_range)) = (
-            self.transforms.add(&[transform]),
-            vertices.map(|v| self.vertices.add(v)).transpose(),
-        ) {
-            self.current.push(command_builder(
-                (transform_range.start as usize / size_of::<Transforms>()) as u32,
-                vertices_range.map(|v| v.start),
-            ));
-        } else {
+        let fits = |count: usize, size: usize, buffer: &wgpu::Buffer| {
+            ((count + 1) * size) as wgpu::BufferAddress <= buffer.size()
+        };
+        let quad_size = size_of::<[PosUvVertex; 4]>();
+        let start = self.chunk_start;
+        if !fits(
+            self.lists.transforms.len() - start.transforms,
+            size_of::<Transforms>(),
+            &self.dynamic_transforms.buffer,
+        ) || quad.is_some()
+            && !fits(
+                self.lists.quads.len() - start.quads,
+                quad_size,
+                &self.dynamic_transforms.vertex_buffer,
+            )
+        {
             self.flush_current();
-            let transform_range = self
-                .transforms
-                .add(&[transform])
-                .expect("Buffer must be able to fit a new thing, it was just emptied");
-            let vertices_range = vertices.map(|v| {
-                self.vertices
-                    .add(v)
-                    .expect("Buffer must be able to fit a new thing, it was just emptied")
-            });
-            self.current.push(command_builder(
-                (transform_range.start as usize / size_of::<Transforms>()) as u32,
-                vertices_range.map(|v| v.start),
-            ));
         }
+        let start = self.chunk_start;
+        let instance_index = (self.lists.transforms.len() - start.transforms) as u32;
+        let vertex_offset = quad.map(|quad| {
+            let offset = (self.lists.quads.len() - start.quads) * quad_size;
+            self.lists.quads.push(quad);
+            offset as wgpu::BufferAddress
+        });
+        self.lists.transforms.push(transform);
+        self.lists
+            .commands
+            .push(command_builder(instance_index, vertex_offset));
     }
     fn add_bitmap(
         &mut self,
@@ -2131,7 +2139,7 @@ impl CommandHandler for WgpuCommandHandler<'_, '_> {
                 } else {
                     self.flush_batch();
                     self.flush_current();
-                    self.result.push(chunk);
+                    self.lists.chunks.push(chunk);
                     self.needs_stencil = false;
                 }
             }
