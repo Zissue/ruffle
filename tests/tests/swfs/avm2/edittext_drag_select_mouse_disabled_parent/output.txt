@@ -1,0 +1,9 @@
+input in two mouse-disabled sprites: selection 2-12
+dynamic in a mouse-disabled sprite: selection 0-0
+input in the root: selection 0-0
+input in two mouse-disabled sprites: selection 2-12
+dynamic in a mouse-disabled sprite: selection 2-12
+input in the root: selection 0-0
+input in two mouse-disabled sprites: selection 2-12
+dynamic in a mouse-disabled sprite: selection 2-12
+input in the root: selection 2-12

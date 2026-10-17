@@ -1,0 +1,188 @@
+[
+{
+"type": "MouseMove",
+"pos": [
+40,
+25
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseDown",
+"pos": [
+40,
+25
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+90,
+25
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+149,
+25
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+150,
+25
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseUp",
+"pos": [
+150,
+25
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+40,
+75
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseDown",
+"pos": [
+40,
+75
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+90,
+75
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+149,
+75
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+150,
+75
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseUp",
+"pos": [
+150,
+75
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+40,
+125
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseDown",
+"pos": [
+40,
+125
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+90,
+125
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+149,
+125
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseMove",
+"pos": [
+150,
+125
+]
+},
+{
+"type": "Wait"
+},
+{
+"type": "MouseUp",
+"pos": [
+150,
+125
+],
+"btn": "Left"
+},
+{
+"type": "Wait"
+}
+]

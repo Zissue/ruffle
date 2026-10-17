@@ -554,7 +554,7 @@ pub trait TInteractiveObject<'gc>:
         context: &mut UpdateContext<'gc>,
         event: ClipEvent<'gc>,
     ) -> ClipEventResult {
-        if !self.mouse_enabled() {
+        if !self.mouse_enabled() && !self.as_displayobject().movie().is_action_script_3() {
             return ClipEventResult::NotHandled;
         }
 
