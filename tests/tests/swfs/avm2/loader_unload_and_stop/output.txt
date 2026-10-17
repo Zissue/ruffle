@@ -1,0 +1,65 @@
+unload: hasEventListener(enterFrame) root true, on-list true, off-list true
+unloadAndStop: hasEventListener(enterFrame) root true, on-list true, off-list true
+unload: Timer: runs
+unload: child's Timer, started by the loading root: runs
+unload: child's setInterval, loading root's closure: runs
+unload: child's stage listener, loading root's closure: runs
+unload: listener on its Loader: runs
+unload: listener on the loading root: runs
+unload: loading root's Timer, child's listener: runs
+unload: loading root's Timer, started by the child: runs
+unload: loading root's enterFrame listener on child root: runs
+unload: loading root's own stage listener: runs
+unload: loading root's setInterval, child's closure: runs
+unload: loading root's stage listener, child's closure: runs
+unload: off-list Loader's Timer: runs
+unload: off-list Loader's enterFrame: runs
+unload: off-list Loader's setInterval: runs
+unload: off-list clip advances: runs
+unload: off-list enterFrame: runs
+unload: on-list Loader's Timer: runs
+unload: on-list Loader's enterFrame: runs
+unload: on-list Loader's setInterval: runs
+unload: on-list enterFrame: runs
+unload: root enterFrame: runs
+unload: root exitFrame: runs
+unload: root frameConstructed: runs
+unload: setInterval: runs
+unload: setTimeout: runs
+unload: sound position changes: runs
+unload: soundComplete: stopped
+unload: stage listener: runs
+unload: child's Timer running true
+unloadAndStop: Timer: stopped
+unloadAndStop: child's Timer, started by the loading root: runs
+unloadAndStop: child's setInterval, loading root's closure: stopped
+unloadAndStop: child's stage listener, loading root's closure: stopped
+unloadAndStop: clip advances: stopped
+unloadAndStop: listener on its Loader: runs
+unloadAndStop: listener on the loading root: runs
+unloadAndStop: loading root's Timer, child's listener: runs
+unloadAndStop: loading root's Timer, started by the child: stopped
+unloadAndStop: loading root's enterFrame listener on child root: stopped
+unloadAndStop: loading root's own stage listener: runs
+unloadAndStop: loading root's setInterval, child's closure: runs
+unloadAndStop: loading root's stage listener, child's closure: runs
+unloadAndStop: off-list Loader's Timer: runs
+unloadAndStop: off-list Loader's enterFrame: runs
+unloadAndStop: off-list Loader's setInterval: runs
+unloadAndStop: off-list clip advances: runs
+unloadAndStop: off-list enterFrame: stopped
+unloadAndStop: on-list Loader's Timer: stopped
+unloadAndStop: on-list Loader's enterFrame: stopped
+unloadAndStop: on-list Loader's setInterval: stopped
+unloadAndStop: on-list enterFrame: stopped
+unloadAndStop: root enterFrame: stopped
+unloadAndStop: root exitFrame: stopped
+unloadAndStop: root frameConstructed: stopped
+unloadAndStop: setInterval: stopped
+unloadAndStop: setTimeout: stopped
+unloadAndStop: sound position changes: stopped
+unloadAndStop: soundComplete: stopped
+unloadAndStop: stage listener: stopped
+unloadAndStop: child's Timer running false
+unload: child's Timer restarted by the loading root runs, running true
+unloadAndStop: child's Timer restarted by the loading root runs, running true

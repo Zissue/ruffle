@@ -15,6 +15,8 @@ use crate::display_object::{
 use crate::string::{AvmString, WString};
 use swf::Color;
 
+pub use crate::avm2::globals::flash::events::event_dispatcher::add_event_listener;
+
 /// Implement `align`'s getter
 pub fn get_align<'gc>(
     activation: &mut Activation<'_, 'gc>,

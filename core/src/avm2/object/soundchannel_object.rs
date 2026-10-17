@@ -7,10 +7,12 @@ use crate::avm2::object::{ClassObject, Object, TObject};
 use crate::backend::audio::SoundInstanceHandle;
 use crate::context::UpdateContext;
 use crate::display_object::SoundTransform;
+use crate::tag_utils::SwfMovie;
 use core::fmt;
 use gc_arena::{Collect, Gc, GcWeak};
 use ruffle_common::utils::HasPrefixField;
 use std::cell::{Cell, RefCell};
+use std::sync::Arc;
 
 /// A class instance allocator that allocates SoundChannel objects.
 pub fn sound_channel_allocator<'gc>(
@@ -28,6 +30,7 @@ pub fn sound_channel_allocator<'gc>(
                 should_stop: false,
             }),
             position: Cell::new(0.0),
+            started_by: activation.caller_movie(),
         },
     ))
     .into())
@@ -61,6 +64,9 @@ pub struct SoundChannelObjectData<'gc> {
 
     /// Position of the last playing sound in milliseconds.
     position: Cell<f64>,
+
+    #[collect(require_static)]
+    started_by: Option<Arc<SwfMovie>>,
 }
 
 pub enum SoundChannelData {
@@ -88,8 +94,13 @@ impl<'gc> SoundChannelObject<'gc> {
                     should_stop: false,
                 }),
                 position: Cell::new(0.0),
+                started_by: activation.caller_movie(),
             },
         ))
+    }
+
+    pub fn started_by(&self) -> Option<&Arc<SwfMovie>> {
+        self.0.started_by.as_ref()
     }
 
     /// Return the position of the playing sound in seconds.

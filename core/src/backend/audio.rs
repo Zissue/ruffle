@@ -6,6 +6,7 @@ use crate::{
     context::UpdateContext,
     display_object::{self, DisplayObject, MovieClip, TDisplayObject},
     string::AvmString,
+    tag_utils::SwfMovie,
 };
 use gc_arena::Collect;
 pub use ruffle_common::buffer::Substream;
@@ -36,6 +37,7 @@ mod decoders {
 }
 
 use crate::swf::{CharacterId, SoundInfo};
+use std::sync::Arc;
 use thiserror::Error;
 use web_time::Duration;
 
@@ -558,6 +560,22 @@ impl<'gc> AudioManager<'gc> {
                 }
             }
             true
+        });
+    }
+
+    pub fn stop_sounds_started_by(
+        &mut self,
+        audio: &mut dyn AudioBackend,
+        is_starter: impl Fn(&Arc<SwfMovie>) -> bool,
+    ) {
+        self.sounds.retain(|sound| {
+            let stop = sound
+                .avm2_object
+                .is_some_and(|channel| channel.started_by().is_some_and(&is_starter));
+            if stop {
+                audio.stop_sound(sound.instance);
+            }
+            !stop
         });
     }
 

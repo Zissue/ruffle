@@ -7,10 +7,12 @@ use crate::avm2::globals::slots::flash_events_event_dispatcher as slots;
 use crate::avm2::object::{EventObject, FunctionObject, FunctionObjectWeak, Object, TObject as _};
 use crate::display_object::TDisplayObject;
 use crate::string::AvmString;
+use crate::tag_utils::SwfMovie;
 use fnv::FnvHashMap;
 use gc_arena::{Collect, Gc, GcWeak, Mutation};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 /// Which phase of event dispatch is currently occurring.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -221,8 +223,10 @@ impl<'gc> DispatchList<'gc> {
         handler: FunctionObject<'gc>,
         use_capture: bool,
         use_weak_reference: bool,
+        registered_by: Option<Arc<SwfMovie>>,
     ) {
-        let new_handler = EventHandler::new(handler, use_capture, use_weak_reference);
+        let mut new_handler = EventHandler::new(handler, use_capture, use_weak_reference);
+        new_handler.registered_by = registered_by;
 
         if let Some(event_sheaf) = self.0.get_mut(&event) {
             for set in event_sheaf.values_mut() {
@@ -256,6 +260,15 @@ impl<'gc> DispatchList<'gc> {
             if let Some(pos) = set.iter().position(|h| *h == old_handler) {
                 set.remove(pos);
             }
+        }
+    }
+
+    pub fn remove_event_listeners_registered_by(
+        &mut self,
+        is_registrant: impl Fn(&Arc<SwfMovie>) -> bool,
+    ) {
+        for set in self.0.values_mut().flat_map(|sheaf| sheaf.values_mut()) {
+            set.retain(|handler| !handler.registered_by.as_ref().is_some_and(&is_registrant));
         }
     }
 
@@ -312,6 +325,9 @@ struct EventHandler<'gc> {
     /// (when `true`), or if it should only be called for bubbling and
     /// at-target events (when `false`).
     use_capture: bool,
+
+    #[collect(require_static)]
+    registered_by: Option<Arc<SwfMovie>>,
 }
 
 #[derive(Clone, Copy, Collect)]
@@ -347,6 +363,7 @@ impl<'gc> EventHandler<'gc> {
         Self {
             handler,
             use_capture,
+            registered_by: None,
         }
     }
 

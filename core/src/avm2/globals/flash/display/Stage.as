@@ -36,15 +36,13 @@ package flash.display {
             return super.addChildAt(child, index);
         }
 
-        override public function addEventListener(
+        override public native function addEventListener(
             type:String,
             listener:Function,
             useCapture:Boolean = false,
             priority:int = 0,
             useWeakReference:Boolean = false
-        ):void {
-            super.addEventListener(type, listener, useCapture, priority, useWeakReference);
-        }
+        ):void;
 
         override public function set alpha(value:Number):void {
             Error.throwError(IllegalOperationError, 2071);

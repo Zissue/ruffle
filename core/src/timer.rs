@@ -7,17 +7,21 @@
 use crate::avm1::ExecutionReason;
 use crate::avm1::{Activation, ActivationIdentifier, Object as Avm1Object, Value as Avm1Value};
 use crate::avm2::error::make_null_or_undefined_error;
-use crate::avm2::object::FunctionObject as Avm2FunctionObject;
+use crate::avm2::globals::slots::flash_utils_timer as timer_slots;
+use crate::avm2::object::{
+    FunctionObject as Avm2FunctionObject, Object as Avm2Object, TObject as _,
+};
 use crate::avm2::{
     Activation as Avm2Activation, Avm2, Error as Avm2Error, FunctionArgs, Value as Avm2Value,
 };
 use crate::context::UpdateContext;
 use crate::display_object::{DisplayObject, TDisplayObject};
 use crate::string::AvmString;
-use gc_arena::Collect;
+use crate::tag_utils::SwfMovie;
+use gc_arena::{Collect, Mutation};
 use ruffle_common::duration::FloatDuration;
 use std::collections::{BinaryHeap, binary_heap::PeekMut};
-
+use std::sync::Arc;
 /// Manages the collection of timers.
 #[derive(Collect)]
 #[collect(no_drop)]
@@ -140,37 +144,15 @@ impl<'gc> Timers<'gc> {
                         true
                     }
                 }
+                TimerCallback::Avm2Timer(timer) => {
+                    let closure = timer
+                        .get_slot(timer_slots::_ON_UPDATE_CLOSURE)
+                        .as_object()
+                        .and_then(|o| o.as_function_object());
+                    Self::run_avm2_callback(context, closure, &[])
+                }
                 TimerCallback::Avm2Callback { closure, params } => {
-                    let domain = context.avm2.stage_domain();
-                    let mut avm2_activation = Avm2Activation::from_domain(context, domain);
-
-                    let mut run_closure = || -> Result<Avm2Value<'gc>, Avm2Error<'gc>> {
-                        // Reproduce FP's behavior
-                        let Some(closure) = closure else {
-                            return Err(make_null_or_undefined_error(
-                                &mut avm2_activation,
-                                Avm2Value::Null,
-                                None,
-                            ));
-                        };
-
-                        let params = FunctionArgs::from_slice(&params);
-                        closure.call(&mut avm2_activation, Avm2Value::Null, params)
-                    };
-
-                    match run_closure() {
-                        Ok(v) => v.coerce_to_boolean(),
-                        Err(err) => {
-                            Avm2::uncaught_error(
-                                &mut avm2_activation,
-                                closure
-                                    .map(|closure| closure.executable().as_method().owner_movie()),
-                                err,
-                                "Error in AVM2 timer callback",
-                            );
-                            false
-                        }
-                    }
+                    Self::run_avm2_callback(context, closure, &params)
                 }
             };
 
@@ -209,6 +191,42 @@ impl<'gc> Timers<'gc> {
         context.timers.peek().map(|timer| {
             (timer.tick_time.wrapping_sub(context.timers.cur_time)) as f64 / Self::TIMER_SCALE
         })
+    }
+
+    fn run_avm2_callback(
+        context: &mut UpdateContext<'gc>,
+        closure: Option<Avm2FunctionObject<'gc>>,
+        params: &[Avm2Value<'gc>],
+    ) -> bool {
+        let domain = context.avm2.stage_domain();
+        let mut avm2_activation = Avm2Activation::from_domain(context, domain);
+
+        let mut run_closure = || -> Result<Avm2Value<'gc>, Avm2Error<'gc>> {
+            // Reproduce FP's behavior
+            let Some(closure) = closure else {
+                return Err(make_null_or_undefined_error(
+                    &mut avm2_activation,
+                    Avm2Value::Null,
+                    None,
+                ));
+            };
+
+            let params = FunctionArgs::from_slice(params);
+            closure.call(&mut avm2_activation, Avm2Value::Null, params)
+        };
+
+        match run_closure() {
+            Ok(v) => v.coerce_to_boolean(),
+            Err(err) => {
+                Avm2::uncaught_error(
+                    &mut avm2_activation,
+                    closure.map(|closure| closure.executable().as_method().owner_movie()),
+                    err,
+                    "Error in AVM2 timer callback",
+                );
+                false
+            }
+        }
     }
 
     /// The minimum interval we allow for timers.
@@ -250,6 +268,7 @@ impl<'gc> Timers<'gc> {
         callback: TimerCallback<'gc>,
         interval: i32,
         is_timeout: bool,
+        started_by: Option<Arc<SwfMovie>>,
     ) -> i32 {
         // SANITY: Set a minimum interval so we don't spam too much.
         let interval = interval.max(Self::MIN_INTERVAL) as u64 * (Self::TIMER_SCALE as u64);
@@ -264,9 +283,26 @@ impl<'gc> Timers<'gc> {
             tick_time: self.cur_time + interval,
             interval,
             is_timeout,
+            started_by,
         };
         self.timers.push(timer);
         id
+    }
+
+    pub fn remove_started_by(
+        &mut self,
+        is_starter: impl Fn(&Arc<SwfMovie>) -> bool,
+        mc: &Mutation<'gc>,
+    ) {
+        let (removed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.timers)
+            .into_iter()
+            .partition(|timer| timer.started_by.as_ref().is_some_and(&is_starter));
+        self.timers = kept.into();
+        for timer in removed {
+            if let TimerCallback::Avm2Timer(object) = timer.callback {
+                object.set_slot_no_coerce(timer_slots::_TIMER_ID, (-1).into(), mc);
+            }
+        }
     }
 
     /// Removes a timer.
@@ -346,6 +382,9 @@ pub struct Timer<'gc> {
 
     /// This timer only fires once if `is_timeout` is true.
     is_timeout: bool,
+
+    #[collect(require_static)]
+    started_by: Option<Arc<SwfMovie>>,
 }
 
 // Implement `Ord` so that timers can be stored in the BinaryHeap (as a min-heap).
@@ -389,4 +428,7 @@ pub enum TimerCallback<'gc> {
         closure: Option<Avm2FunctionObject<'gc>>,
         params: Vec<Avm2Value<'gc>>,
     },
+
+    /// A started `flash.utils.Timer`.
+    Avm2Timer(Avm2Object<'gc>),
 }

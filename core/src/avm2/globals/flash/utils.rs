@@ -46,6 +46,7 @@ pub fn set_interval<'gc>(
         callback,
         interval as i32,
         false,
+        activation.caller_movie(),
     )))
 }
 
@@ -79,6 +80,7 @@ pub fn set_timeout<'gc>(
         callback,
         interval as i32,
         true,
+        activation.caller_movie(),
     )))
 }
 

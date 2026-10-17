@@ -8,6 +8,7 @@ use crate::avm2::object::{DispatchObject, Object, TObject as _};
 use crate::avm2::parameters::ParametersExt;
 use crate::avm2::value::Value;
 use crate::avm2::{Avm2, Error};
+use crate::display_object::DisplayObject;
 
 /// Get an object's dispatch list, lazily initializing it if necessary.
 fn dispatch_list<'gc>(
@@ -39,6 +40,9 @@ pub fn add_event_listener<'gc>(
     let use_capture = args.get_bool(2);
     let priority = args.get_i32(3);
     let use_weak_reference = args.get_bool(4);
+    let registered_by = matches!(this.as_display_object(), Some(DisplayObject::Stage(_)))
+        .then(|| activation.caller_movie())
+        .flatten();
 
     dispatch_list
         .as_dispatch_mut(activation.gc())
@@ -49,6 +53,7 @@ pub fn add_event_listener<'gc>(
             listener,
             use_capture,
             use_weak_reference,
+            registered_by,
         );
 
     Avm2::register_broadcast_listener(activation.context, this, event_type);

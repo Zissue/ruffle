@@ -1,6 +1,4 @@
 package flash.display {
-    import __ruffle__.stub_method;
-
     import flash.display.LoaderInfo;
     import flash.display.DisplayObject;
     import flash.errors.IllegalOperationError;
@@ -33,10 +31,7 @@ package flash.display {
         public native function unload():void;
 
         [API("662")]
-        public function unloadAndStop(gc:Boolean = true):void {
-            stub_method("flash.display.Loader", "unloadAndStop");
-            this.unload();
-        }
+        public native function unloadAndStop(gc:Boolean = true):void;
 
         public native function close():void;
 

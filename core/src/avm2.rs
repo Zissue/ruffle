@@ -171,7 +171,10 @@ pub struct Avm2<'gc> {
     /// Certain types of events are "broadcast events" that are emitted on all
     /// constructed objects in order of their creation, whether or not they are
     /// currently present on the display list. This list keeps track of that.
-    broadcast_list: FnvHashMap<AvmString<'gc>, Vec<WeakObject<'gc>>>,
+    ///
+    /// An entry is `None` once its object stops receiving broadcasts, so
+    /// that removing it doesn't shift a broadcast in progress.
+    broadcast_list: FnvHashMap<AvmString<'gc>, Vec<Option<WeakObject<'gc>>>>,
 
     weak_dictionaries: Vec<DictionaryObjectWeak<'gc>>,
 
@@ -400,7 +403,7 @@ impl<'gc> Avm2<'gc> {
 
         let bucket = context.avm2.broadcast_list.entry(event_name).or_default();
 
-        for entry in bucket.iter() {
+        for entry in bucket.iter().flatten() {
             // Note: comparing pointers is correct because GcWeak keeps its allocation alive,
             // so the pointers can't overlap by accident.
             if std::ptr::eq(entry.as_ptr(), object.as_ptr()) {
@@ -408,7 +411,23 @@ impl<'gc> Avm2<'gc> {
             }
         }
 
-        bucket.push(object.downgrade());
+        bucket.push(Some(object.downgrade()));
+    }
+
+    pub fn stop_broadcasts_to_movies(
+        &mut self,
+        is_stopped: impl Fn(&Arc<SwfMovie>) -> bool,
+        mc: &Mutation<'gc>,
+    ) {
+        for entry in self.broadcast_list.values_mut().flatten() {
+            let stopped = entry
+                .and_then(|object| object.upgrade(mc))
+                .and_then(|object| object.as_display_object())
+                .is_some_and(|object| is_stopped(&object.movie()));
+            if stopped {
+                *entry = None;
+            }
+        }
     }
 
     pub fn register_weak_dictionary(&mut self, dictionary: DictionaryObject<'gc>) {
@@ -480,7 +499,8 @@ impl<'gc> Avm2<'gc> {
                 .get(&event_name)
                 .unwrap()
                 .get(i)
-                .copied();
+                .copied()
+                .flatten();
 
             if let Some(object) = object.and_then(|obj| obj.upgrade(context.gc()))
                 && object.is_of_type(on_type.inner_class_definition())
@@ -496,7 +516,7 @@ impl<'gc> Avm2<'gc> {
             .broadcast_list
             .entry(event_name)
             .or_default()
-            .retain(|x| x.upgrade(context.gc_context).is_some());
+            .retain(|x| x.is_some_and(|x| x.upgrade(context.gc_context).is_some()));
     }
 
     pub fn lookup_class_for_character(

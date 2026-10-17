@@ -1,0 +1,5 @@
+num_ticks = 45
+
+[player_options]
+mode = "Release"
+with_audio = true

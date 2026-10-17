@@ -8,6 +8,7 @@ use crate::avm2::activation::Activation;
 use crate::avm2::error::{make_error_2007, make_error_2029};
 use crate::avm2::globals::flash::display::display_object::initialize_for_allocator;
 use crate::avm2::globals::slots::flash_display_loader as loader_slots;
+use crate::avm2::globals::slots::flash_events_event_dispatcher as dispatcher_slots;
 use crate::avm2::globals::slots::flash_net_url_request as url_request_slots;
 use crate::avm2::globals::slots::flash_net_url_request_header as url_request_header_slots;
 use crate::avm2::object::LoaderInfoObject;
@@ -17,8 +18,10 @@ use crate::avm2::parameters::ParametersExt;
 use crate::avm2::value::Value;
 use crate::avm2::{Error, Object};
 use crate::backend::navigator::{NavigationMethod, Request};
+use crate::context::UpdateContext;
 use crate::display_object::LoaderDisplay;
 use crate::display_object::MovieClip;
+use crate::display_object::{DisplayObject, TDisplayObject as _, TDisplayObjectContainer as _};
 use crate::loader::LoadManager;
 use crate::loader::LoaderStatus;
 use crate::loader::MovieLoaderVMData;
@@ -312,6 +315,58 @@ pub fn close<'gc>(
     }
 
     Ok(Value::Undefined)
+}
+
+pub fn unload_and_stop<'gc>(
+    activation: &mut Activation<'_, 'gc>,
+    this: Value<'gc>,
+    args: FunctionArgs<'_, 'gc>,
+) -> Result<Value<'gc>, Error<'gc>> {
+    let content = this
+        .as_object()
+        .and_then(|this| this.as_display_object())
+        .and_then(|loader| loader.as_container())
+        .and_then(|loader| loader.child_by_index(0));
+    if let Some(content) = content {
+        stop_content(activation.context, content);
+    }
+
+    unload(activation, this, args)
+}
+
+fn stop_content<'gc>(context: &mut UpdateContext<'gc>, content: DisplayObject<'gc>) {
+    let mut movies = vec![content.movie()];
+    let mut objects = vec![content];
+    while let Some(object) = objects.pop() {
+        if let Some(clip) = object.as_movie_clip() {
+            clip.stop(context);
+        }
+        if let Some(container) = object.as_container() {
+            let is_loader = matches!(object, DisplayObject::LoaderDisplay(_));
+            for child in container.iter_render_list() {
+                if is_loader {
+                    movies.push(child.movie());
+                }
+                objects.push(child);
+            }
+        }
+    }
+
+    let is_unloaded = |movie: &Arc<SwfMovie>| movies.iter().any(|m| Arc::ptr_eq(m, movie));
+    let mc = context.gc();
+    context.timers.remove_started_by(is_unloaded, mc);
+    context.avm2.stop_broadcasts_to_movies(is_unloaded, mc);
+    context
+        .audio_manager
+        .stop_sounds_started_by(context.audio, is_unloaded);
+    if let Some(stage) = context.stage.object2()
+        && let Some(list) = Object::from(stage)
+            .get_slot(dispatcher_slots::DISPATCH_LIST)
+            .as_object()
+        && let Some(mut stage_listeners) = list.as_dispatch_mut(mc)
+    {
+        stage_listeners.remove_event_listeners_registered_by(is_unloaded);
+    }
 }
 
 pub fn unload<'gc>(
