@@ -2035,6 +2035,15 @@ impl<'a> Reader<'a> {
         })
     }
 
+    pub fn read_place_object_depth(&mut self, place_object_version: u8) -> Result<Depth> {
+        match place_object_version {
+            1 => self.read_u16()?,
+            2 => self.read_u8()?.into(),
+            _ => self.read_u16()?,
+        };
+        Ok(self.read_u16()?)
+    }
+
     pub fn read_remove_object_1(&mut self) -> Result<RemoveObject> {
         Ok(RemoveObject {
             character_id: Some(self.read_u16()?),

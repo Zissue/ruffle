@@ -4556,11 +4556,7 @@ impl<'gc, 'a> MovieClip<'gc> {
         let swf_ptr = self.0.shared.get().swf.as_ref().as_ptr();
         let tag_ptr = reader.get_ref().as_ptr();
         let tag_start = (tag_ptr.addr() - swf_ptr.addr()) as u64;
-        let place_object = if version == 1 {
-            reader.read_place_object()
-        } else {
-            reader.read_place_object_2_or_3(version)
-        }?;
+        let depth = reader.read_place_object_depth(version)?;
 
         let new_tag = QueuedTag {
             tag_type: QueuedTagAction::Place(version),
@@ -4568,7 +4564,7 @@ impl<'gc, 'a> MovieClip<'gc> {
         };
         let mut queued_tags = self.0.queued_tags.borrow_mut();
         let bucket = queued_tags
-            .entry(place_object.depth as Depth)
+            .entry(depth as Depth)
             .or_insert_with(|| QueuedTagList::None);
 
         bucket.queue_add(new_tag);
