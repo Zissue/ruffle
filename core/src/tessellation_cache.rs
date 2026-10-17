@@ -1,4 +1,7 @@
 use ruffle_render::backend::ShapeHandle;
+use ruffle_render::matrix::Matrix;
+use ruffle_render::scale9::Scale9;
+use std::cell::RefCell;
 
 /// The scale ratio threshold beyond which a graphic or a drawing will be retessellated.
 const RETESSELLATION_SCALE_THRESHOLD: f32 = 2.0;
@@ -108,5 +111,51 @@ impl TessellationCache {
         // Move touched entry to MRU position (end)
         self.entries[self.len - 1] = Some(entry.clone());
         entry.1
+    }
+}
+
+/// The tessellation of a shape sliced by a scaling grid, for one grid, scale and place in the
+/// gridded object. A sliced shape's size is in its vertices, so another size needs another.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SlicedTessellation(RefCell<Option<Box<Sliced>>>);
+
+#[derive(Clone, Debug)]
+struct Sliced {
+    scale9: Scale9,
+    to_grid: Matrix,
+    scale: f32,
+    handle: ShapeHandle,
+}
+
+impl SlicedTessellation {
+    pub(crate) fn get_or_insert_with(
+        &self,
+        scale9: &Scale9,
+        to_grid: Matrix,
+        scale: f32,
+        tessellate: impl FnOnce() -> Option<ShapeHandle>,
+    ) -> Option<ShapeHandle> {
+        if let Some(sliced) = &*self.0.borrow() {
+            let ratio = f32::abs(scale / sliced.scale);
+            if sliced.scale9 == *scale9
+                && sliced.to_grid == to_grid
+                && (RETESSELLATION_SCALE_THRESHOLD_INVERSE..=RETESSELLATION_SCALE_THRESHOLD)
+                    .contains(&ratio)
+            {
+                return Some(sliced.handle.clone());
+            }
+        }
+        let handle = tessellate()?;
+        *self.0.borrow_mut() = Some(Box::new(Sliced {
+            scale9: *scale9,
+            to_grid,
+            scale,
+            handle: handle.clone(),
+        }));
+        Some(handle)
+    }
+
+    pub(crate) fn clear(&self) {
+        self.0.take();
     }
 }

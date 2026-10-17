@@ -1,7 +1,10 @@
 use crate::context::RenderContext;
+use crate::tessellation_cache::SlicedTessellation;
 use ruffle_render::backend::{RenderBackend, ShapeHandle};
 use ruffle_render::bitmap::{BitmapHandle, BitmapInfo, BitmapSize, BitmapSource};
 use ruffle_render::commands::CommandHandler;
+use ruffle_render::matrix::Matrix;
+use ruffle_render::scale9::Scale9;
 use ruffle_render::shape_utils::{
     DistilledShape, DrawCommand, DrawPath, FillRule, cubic_curve_bounds, quadratic_curve_bounds,
 };
@@ -11,6 +14,7 @@ use swf::{FillStyle, LineStyle, Point, Rectangle, Twips};
 #[derive(Clone, Debug)]
 pub struct Drawing {
     render_handle: OnceCell<ShapeHandle>,
+    sliced: SlicedTessellation,
     shape_bounds: Rectangle<Twips>,
     edge_bounds: Rectangle<Twips>,
     paths: Vec<DrawingPath>,
@@ -35,6 +39,7 @@ impl Drawing {
     pub fn new() -> Self {
         Self {
             render_handle: OnceCell::new(),
+            sliced: Default::default(),
             shape_bounds: Default::default(),
             edge_bounds: Default::default(),
             paths: Vec::new(),
@@ -52,6 +57,7 @@ impl Drawing {
     pub fn from_swf_shape(shape: &swf::Shape) -> Self {
         let mut this = Self {
             render_handle: OnceCell::new(),
+            sliced: Default::default(),
             shape_bounds: shape.shape_bounds,
             edge_bounds: shape.edge_bounds,
             paths: Vec::new(),
@@ -107,6 +113,7 @@ impl Drawing {
     fn mark_dirty(&mut self) {
         self.is_empty = false;
         self.render_handle.take();
+        self.sliced.clear();
     }
 
     /// Set fill style and reset fill rule to default.
@@ -163,6 +170,7 @@ impl Drawing {
 
         // An empty drawing doesn't need to hold onto a `ShapeHandle`.
         self.render_handle.take();
+        self.sliced.clear();
     }
 
     pub fn set_line_style(&mut self, style: Option<LineStyle>) {
@@ -326,6 +334,25 @@ impl Drawing {
             context
                 .commands
                 .render_shape(handle, context.transform_stack.transform());
+        }
+    }
+
+    pub fn render_sliced(&self, context: &mut RenderContext, scale9: &Scale9, to_grid: Matrix) {
+        let Some(unscale) = scale9.unscale(to_grid) else {
+            return self.render(context);
+        };
+        if self.is_empty {
+            return;
+        }
+        let handle = self.sliced.get_or_insert_with(scale9, to_grid, 1.0, || {
+            scale9.slice(self.distilled(), to_grid, |shape| {
+                context.renderer.register_shape(shape, self)
+            })
+        });
+        if let Some(handle) = handle {
+            let mut transform = context.transform_stack.transform();
+            transform.matrix *= unscale;
+            context.commands.render_shape(handle, transform);
         }
     }
 

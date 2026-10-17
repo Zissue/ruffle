@@ -10,7 +10,7 @@ use crate::expiring::{Expiring, ExpiringValues};
 use crate::library::MovieLibrarySource;
 use crate::prelude::*;
 use crate::tag_utils::{SwfMovie, SwfSlice};
-use crate::tessellation_cache::TessellationCache;
+use crate::tessellation_cache::{SlicedTessellation, TessellationCache};
 use crate::vminterface::Instantiator;
 use core::fmt;
 use gc_arena::barrier::unlock;
@@ -20,6 +20,7 @@ use ruffle_common::utils::HasPrefixField;
 use ruffle_render::backend::ShapeHandle;
 use ruffle_render::backend::null::NullBitmapSource;
 use ruffle_render::commands::CommandHandler;
+use ruffle_render::scale9::Scale9;
 use std::cell::{OnceCell, Ref, RefCell, RefMut};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -47,6 +48,8 @@ pub struct GraphicData<'gc> {
     /// This is lazily allocated on demand, to make `GraphicData` smaller in the common case.
     #[collect(require_static)]
     drawing: OnceCell<Box<RefCell<Drawing>>>,
+    #[collect(require_static)]
+    sliced: SlicedTessellation,
 }
 
 impl<'gc> Graphic<'gc> {
@@ -77,6 +80,7 @@ impl<'gc> Graphic<'gc> {
                 class: Lock::new(None),
                 avm2_object: Lock::new(None),
                 drawing: OnceCell::new(),
+                sliced: Default::default(),
             },
         ))
     }
@@ -103,6 +107,7 @@ impl<'gc> Graphic<'gc> {
                 class: Lock::new(None),
                 avm2_object: Lock::new(None),
                 drawing: OnceCell::new(),
+                sliced: Default::default(),
             },
         ))
     }
@@ -125,6 +130,31 @@ impl<'gc> Graphic<'gc> {
 
     fn set_shared(self, mc: &Mutation<'gc>, shared: Gc<'gc, GraphicShared>) {
         unlock!(Gc::write(mc, self.0), GraphicData, shared).set(shared);
+    }
+
+    fn sliced_handle(
+        self,
+        context: &mut RenderContext,
+        scale9: &Scale9,
+        to_grid: Matrix,
+        scale: f32,
+    ) -> Option<ShapeHandle> {
+        self.0
+            .sliced
+            .get_or_insert_with(scale9, to_grid, scale, || {
+                let shared = self.0.shared.get();
+                let shape = shared.shape(context.library.decoded_shapes_mut());
+                let library = context
+                    .library
+                    .library_for_movie(shared.tag.movie.clone())?;
+                scale9.slice((&*shape).into(), to_grid, |shape| {
+                    context.renderer.register_shape_with_scale(
+                        shape,
+                        &MovieLibrarySource { library },
+                        scale,
+                    )
+                })
+            })
     }
 
     /// Returns the best shape handle for the current scale, retessellating if necessary.
@@ -240,30 +270,43 @@ impl<'gc> TDisplayObject<'gc> for Graphic<'gc> {
             .get_graphic(id)
         {
             self.set_shared(context.gc(), new_graphic.0.shared.get());
+            self.0.sliced.clear();
         } else {
             tracing::warn!("PlaceObject: expected Graphic at character ID {}", id);
         }
         self.invalidate_cached_bitmap();
     }
 
-    fn render_self(self, context: &mut RenderContext) {
+    fn render_self(self, context: &mut RenderContext<'_, 'gc>) {
         if self.is_culled(context) {
             return;
         }
 
+        let slicing = self.slicing_grid(context);
         if let Some(drawing) = self.0.drawing.get() {
-            drawing.borrow().render(context);
+            match slicing {
+                Some((scale9, to_grid)) => {
+                    drawing.borrow().render_sliced(context, &scale9, to_grid)
+                }
+                None => drawing.borrow().render(context),
+            }
         } else if self.0.shared.get().has_records {
             let transform = context.transform_stack.transform();
 
-            // Calculate the current scale from the transform, to determine if
-            // we can reuse a cached tessellation or need to retessellate.
-            let matrix = &transform.matrix;
-            let scale_x = f32::abs(matrix.a + matrix.c);
-            let scale_y = f32::abs(matrix.b + matrix.d);
-            let current_scale = ((scale_x * scale_x + scale_y * scale_y) / 2.0).sqrt();
+            if let Some((scale9, to_grid)) = slicing
+                && let Some(unscale) = scale9.unscale(to_grid)
+            {
+                let mut transform = transform.clone();
+                transform.matrix *= unscale;
+                let scale = tessellation_scale(&transform.matrix);
+                if let Some(handle) = self.sliced_handle(context, &scale9, to_grid, scale) {
+                    context.commands.render_shape(handle, transform);
+                    return;
+                }
+            }
 
-            let handle = self.get_or_retessellate_handle(context, current_scale);
+            let handle =
+                self.get_or_retessellate_handle(context, tessellation_scale(&transform.matrix));
 
             context.commands.render_shape(handle, transform)
         }
@@ -333,6 +376,12 @@ impl<'gc> TDisplayObject<'gc> for Graphic<'gc> {
     fn as_drawing(&self) -> Option<RefMut<'_, Drawing>> {
         Some(self.drawing_mut())
     }
+}
+
+fn tessellation_scale(matrix: &Matrix) -> f32 {
+    let scale_x = f32::abs(matrix.a + matrix.c);
+    let scale_y = f32::abs(matrix.b + matrix.d);
+    ((scale_x * scale_x + scale_y * scale_y) / 2.0).sqrt()
 }
 
 /// Data shared between all instances of a Graphic.

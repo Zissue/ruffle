@@ -21,6 +21,7 @@ use gc_arena::{Collect, Gc, Mutation};
 use ruffle_macros::{enum_trait_object, istr};
 use ruffle_render::perspective_projection::PerspectiveProjection;
 use ruffle_render::pixel_bender::PixelBenderShaderHandle;
+use ruffle_render::scale9::Scale9;
 use ruffle_render::transform::{Transform, TransformStack};
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::fmt::Debug;
@@ -1076,6 +1077,17 @@ pub fn render_base<'gc>(
         context.transform_stack.push(&transform);
     }
 
+    let scale9 = this
+        .scale9()
+        .filter(|_| {
+            options.apply_transform
+                && options.apply_matrix
+                && this.maskee().is_none()
+                && !context.commands.drawing_mask()
+        })
+        .map(|scale9| (this, scale9));
+    let outer_scale9 = scale9.map(|scale9| context.scale9.replace(scale9));
+
     let blend_mode = this.blend_mode();
     let original_commands = if blend_mode != ExtendedBlendMode::Normal {
         Some(std::mem::take(&mut context.commands))
@@ -1212,6 +1224,7 @@ pub fn render_base<'gc>(
                 is_offscreen: true,
                 use_bitmap_cache: true,
                 stage: context.stage,
+                scale9,
             };
             this.render_self(&mut offscreen_context);
             offscreen_context.cache_draws.push(BitmapCacheEntry {
@@ -1286,6 +1299,10 @@ pub fn render_base<'gc>(
             };
             context.commands.blend(sub_commands, render_blend_mode);
         }
+    }
+
+    if let Some(outer_scale9) = outer_scale9 {
+        context.scale9 = outer_scale9;
     }
 
     if options.apply_transform {
@@ -2221,6 +2238,7 @@ pub trait TDisplayObject<'gc>:
     #[no_dynamic]
     fn set_scaling_grid(self, rect: Rectangle<Twips>) {
         self.base().scaling_grid.set(rect);
+        self.invalidate_cached_bitmap();
     }
 
     #[no_dynamic]
@@ -2241,6 +2259,39 @@ pub trait TDisplayObject<'gc>:
             }
         }
         bounds
+    }
+
+    #[no_dynamic]
+    fn scale9(self) -> Option<Scale9> {
+        let grid = self.scaling_grid();
+        if !grid.is_valid() {
+            return None;
+        }
+        // Flash slices with a skew of 1/4096, but not of 1/2048.
+        const MAX_SKEW: f32 = 1.0 / 4096.0;
+        let matrix = self.base().matrix();
+        if matrix.b.abs() > MAX_SKEW || matrix.c.abs() > MAX_SKEW {
+            return None;
+        }
+        Scale9::new(self.scale9_bounds(), grid, matrix.a, matrix.d)
+    }
+
+    /// The grid slicing this object's drawing, and the matrix from this object's coordinates to
+    /// the gridded object's.
+    #[no_dynamic]
+    fn slicing_grid(self, context: &RenderContext<'_, 'gc>) -> Option<(Scale9, Matrix)> {
+        let (owner, scale9) = context.scale9?;
+        if context.commands.drawing_mask() || self.maskee().is_some() {
+            None
+        } else if DisplayObject::ptr_eq(owner, self) {
+            Some((scale9, Matrix::IDENTITY))
+        } else if matches!(self, DisplayObject::Graphic(_))
+            && DisplayObject::option_ptr_eq(self.parent(), Some(owner))
+        {
+            Some((scale9, self.base().matrix()))
+        } else {
+            None
+        }
     }
 
     #[no_dynamic]

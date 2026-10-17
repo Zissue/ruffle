@@ -1,0 +1,2 @@
+hitTestPoint uses the unsliced shape: (6,6)=false (10,4)=false (54,1)=true (1,42)=true
+getBounds of a sprite smaller than its corners: (x=832, y=114, w=24, h=36)

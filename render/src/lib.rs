@@ -14,6 +14,7 @@ pub mod pixel_bender_support;
 // The `renderdoc` crate doesn't compile on apple platforms
 #[cfg(all(feature = "renderdoc", not(target_vendor = "apple")))]
 pub mod renderdoc;
+pub mod scale9;
 pub mod shader_source;
 pub mod shape_utils;
 pub mod transform;

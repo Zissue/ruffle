@@ -1,0 +1,17 @@
+num_ticks = 2
+
+# The expected image and output are from Flash Player 32 (PPAPI) for macOS.
+[image_comparisons.output]
+tolerance = 32
+max_outliers = 700
+
+[player_options]
+with_renderer = { optional = false }
+mode = "Release"
+
+[[compilers]]
+type = "Asc"
+target = "test.swf"
+class = "Test"
+scripts = ["Test.as"]
+swf_version = 43

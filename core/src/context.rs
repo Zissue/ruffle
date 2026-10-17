@@ -47,6 +47,7 @@ use enum_map::EnumMap;
 use gc_arena::{Collect, Mutation};
 use ruffle_render::backend::{BitmapCacheEntry, RenderBackend};
 use ruffle_render::commands::{CommandHandler, CommandList};
+use ruffle_render::scale9::Scale9;
 use ruffle_render::transform::TransformStack;
 use ruffle_video::backend::VideoBackend;
 use std::collections::{HashMap, VecDeque};
@@ -604,6 +605,9 @@ pub struct RenderContext<'a, 'gc> {
 
     /// The current player's stage (including all loaded levels)
     pub stage: Stage<'gc>,
+
+    /// The object being drawn whose scaling grid slices its drawing and its children's shapes.
+    pub scale9: Option<(DisplayObject<'gc>, Scale9)>,
 }
 
 impl<'gc> RenderContext<'_, 'gc> {
