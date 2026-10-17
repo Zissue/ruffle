@@ -1,0 +1,15 @@
+before registering fonts: TestFont bold=true italic=false: textWidth 59.75
+before registering fonts: Case2 bold=true italic=false: textWidth 59.75
+before registering fonts: Case3 bold=true italic=false: textWidth 50
+before registering fonts: Case3 bold=false italic=false: textWidth 50
+before registering fonts: Case4 bold=true italic=false: textWidth 0
+after registering its own regular TestFont: TestFont bold=true italic=false: textWidth 59.75
+after registering its own regular TestFont: Case2 bold=true italic=false: textWidth 59.75
+after registering its own regular TestFont: Case3 bold=true italic=false: textWidth 50
+after registering its own regular TestFont: Case3 bold=false italic=false: textWidth 50
+after registering its own regular TestFont: Case4 bold=true italic=false: textWidth 0
+after the child registers fonts: TestFont bold=true italic=false: textWidth 59.75
+after the child registers fonts: Case2 bold=true italic=false: textWidth 59.75
+after the child registers fonts: Case3 bold=true italic=false: textWidth 50
+after the child registers fonts: Case3 bold=false italic=false: textWidth 50
+after the child registers fonts: Case4 bold=true italic=false: textWidth 25.75

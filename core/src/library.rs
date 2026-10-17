@@ -855,9 +855,6 @@ impl<'gc> Library<'gc> {
         movie: Option<Arc<SwfMovie>>,
     ) -> Option<Font<'gc>> {
         let query = FontQuery::new(font_type, name.to_owned(), is_bold, is_italic);
-        if let Some(font) = self.global_fonts.find(&query) {
-            return Some(font);
-        }
         if let Some(movie) = movie
             && let Some(library) = self.library_for_movie(movie)
         {
@@ -873,7 +870,7 @@ impl<'gc> Library<'gc> {
                 return Some(font);
             }
         }
-        None
+        self.global_fonts.find(&query)
     }
 
     pub fn global_fonts(&self) -> Vec<Font<'gc>> {
