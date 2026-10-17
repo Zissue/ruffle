@@ -20,6 +20,8 @@ use ruffle_render::matrix::Matrix;
 use ruffle_render::pixel_bender::PixelBenderShaderHandle;
 use ruffle_render::quality::StageQuality;
 use ruffle_render::transform::Transform;
+use std::cmp::Reverse;
+use std::collections::VecDeque;
 use std::mem;
 use std::sync::Arc;
 use swf::{BlendMode, Color, ColorTransform, Twips};
@@ -152,8 +154,15 @@ impl<'encoder> CommandRenderer<'encoder> {
                 _texture,
                 binds,
                 instance_index,
+                vertex_offset,
                 blend_mode,
-            } => self.render_texture(render_pass, *instance_index, binds, *blend_mode),
+            } => self.render_texture(
+                render_pass,
+                *instance_index,
+                *vertex_offset,
+                binds,
+                *blend_mode,
+            ),
             DrawCommand::RenderShape {
                 shape,
                 instance_index,
@@ -349,10 +358,16 @@ impl<'encoder> CommandRenderer<'encoder> {
         &mut self,
         render_pass: &mut wgpu::RenderPass<'encoder>,
         instance_index: u32,
+        vertex_offset: Option<wgpu::BufferAddress>,
         bind_group: &'encoder wgpu::BindGroup,
         blend_mode: DirectBlend,
     ) {
         self.prep_bitmap(render_pass, bind_group, blend_mode, false);
+
+        let (vertex_buffer, vertex_offset) = match vertex_offset {
+            Some(vertex_offset) => (self.dynamic_vertex_buffer, vertex_offset),
+            None => (&self.descriptors.quad.vertices_pos_uv, 0),
+        };
 
         let second = self
             .pipelines
@@ -364,8 +379,8 @@ impl<'encoder> CommandRenderer<'encoder> {
             }
             self.draw::<PosUvVertex>(
                 render_pass,
-                &self.descriptors.quad.vertices_pos_uv,
-                0,
+                vertex_buffer,
+                vertex_offset,
                 &self.descriptors.quad.indices,
                 wgpu::IndexFormat::Uint32,
                 0..6,
@@ -605,6 +620,7 @@ pub enum DrawCommand {
         _texture: Arc<PoolOrArcTexture>,
         binds: wgpu::BindGroup,
         instance_index: u32,
+        vertex_offset: Option<wgpu::BufferAddress>,
         blend_mode: DirectBlend,
     },
     RenderAlphaMask {
@@ -657,11 +673,13 @@ impl DrawCommand {
                 _texture,
                 binds,
                 instance_index,
+                vertex_offset,
                 blend_mode,
             } => DrawCommand::RenderTexture {
                 _texture: _texture.clone(),
                 binds: binds.clone(),
                 instance_index: *instance_index,
+                vertex_offset: *vertex_offset,
                 blend_mode: *blend_mode,
             },
             DrawCommand::RenderShape {
@@ -692,12 +710,16 @@ impl DrawCommand {
                 instance_index,
                 vertex_offset,
                 ..
+            }
+            | DrawCommand::RenderTexture {
+                instance_index,
+                vertex_offset,
+                ..
             } => {
                 *instance_index = index;
                 *vertex_offset = offset;
             }
-            DrawCommand::RenderTexture { instance_index, .. }
-            | DrawCommand::RenderAlphaMask { instance_index, .. }
+            DrawCommand::RenderAlphaMask { instance_index, .. }
             | DrawCommand::RenderShape { instance_index, .. }
             | DrawCommand::DrawRect { instance_index }
             | DrawCommand::DrawLine { instance_index }
@@ -749,6 +771,35 @@ struct PendingDraw {
 }
 
 const LAYER_SIZE_STEP: u32 = 64;
+
+const LAYER_ATLAS_SIZE: u32 = 1024;
+
+struct AtlasCandidate<'a> {
+    index: usize,
+    rect: LayerRect,
+    footprint: PixelRegion,
+    blend: DirectBlend,
+    content: &'a mut CommandList,
+}
+
+struct PlacedLayer {
+    index: usize,
+    rect: LayerRect,
+    footprint: PixelRegion,
+    blend: DirectBlend,
+    content: CommandList,
+    slot: (u32, u32),
+}
+
+struct AtlasLayer {
+    texture: Arc<PoolOrArcTexture>,
+    binds: wgpu::BindGroup,
+    size: (u32, u32),
+    slot: (u32, u32),
+    rect: LayerRect,
+    footprint: PixelRegion,
+    blend: DirectBlend,
+}
 
 fn reads_other_layers(commands: &CommandList) -> bool {
     commands.commands.iter().any(|command| match command {
@@ -1115,6 +1166,9 @@ struct WgpuCommandHandler<'encoder, 'global: 'encoder> {
     num_masks: i32,
     batch: DrawBatch,
     masked: Option<MaskedBlock>,
+    /// One entry for each of the list's blend layers, in order: where its content
+    /// was drawn in a shared page, if it was.
+    atlas_layers: VecDeque<Option<AtlasLayer>>,
 }
 
 impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
@@ -1161,6 +1215,7 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
             num_masks: 0,
             batch: DrawBatch::default(),
             masked: None,
+            atlas_layers: VecDeque::new(),
         }
     }
 
@@ -1184,7 +1239,8 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
 
     /// Replaces every blend with a RenderBitmap, with the subcommands rendered out to a temporary texture
     /// Every complex blend will be its own item, but every other draw will be chunked together
-    fn chunk_blends(&mut self, commands: CommandList) -> Vec<Chunk> {
+    fn chunk_blends(&mut self, mut commands: CommandList) -> Vec<Chunk> {
+        self.draw_layer_atlas(&mut commands);
         commands.execute(self);
         self.finish_masked_block();
         self.flush_batch();
@@ -1593,23 +1649,34 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
         );
     }
 
+    fn direct_blend(
+        &self,
+        commands: &CommandList,
+        blend_mode: &RenderBlendMode,
+    ) -> Option<DirectBlend> {
+        let blend = DirectBlend::for_layer(blend_mode, true)?;
+        match commands.commands.as_slice() {
+            [Command::RenderShape { shape, .. }] if as_mesh(shape).flat => {}
+            [Command::RenderBitmap { .. }] => {}
+            _ => return None,
+        }
+        (!matches!(blend, DirectBlend::Complex(_))
+            || self.parent_copy_region(&commands.commands[0]).is_some())
+        .then_some(blend)
+    }
+
     fn try_blend_directly(
         &mut self,
         commands: &mut CommandList,
         blend_mode: &RenderBlendMode,
     ) -> bool {
-        let Some(blend) = DirectBlend::for_layer(blend_mode, true) else {
+        let Some(blend) = self.direct_blend(commands, blend_mode) else {
             return false;
         };
-        match commands.commands.as_slice() {
-            [Command::RenderShape { shape, .. }] if as_mesh(shape).flat => {}
-            [Command::RenderBitmap { .. }] => {}
-            _ => return false,
-        }
         if let DirectBlend::Complex(_) = blend {
-            let Some(region) = self.parent_copy_region(&commands.commands[0]) else {
-                return false;
-            };
+            let region = self
+                .parent_copy_region(&commands.commands[0])
+                .expect("direct_blend checked it");
             crate::stats::count(&crate::stats::BLEND_LAYERS_DIRECT);
             if region.is_empty() {
                 return true;
@@ -1637,6 +1704,222 @@ impl<'encoder, 'global: 'encoder> WgpuCommandHandler<'encoder, 'global> {
             _ => unreachable!("matched above"),
         }
         true
+    }
+
+    /// A blend layer whose content can be drawn in a shared page: one that isn't
+    /// drawn directly, has a layer of its own size and nothing in its content
+    /// that reads or makes other layers. Its footprint must not touch the
+    /// target's edge, where it's clipped, so the content stays inside its slot.
+    fn atlas_candidate(
+        &self,
+        commands: &CommandList,
+        blend_mode: &RenderBlendMode,
+    ) -> Option<(LayerRect, PixelRegion, DirectBlend)> {
+        if self.direct_blend(commands, blend_mode).is_some()
+            || commands.commands.iter().any(|command| {
+                matches!(
+                    command,
+                    Command::Blend(..)
+                        | Command::RenderAlphaMask { .. }
+                        | Command::RenderStage3D { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let blend = DirectBlend::for_layer(blend_mode, false)?;
+        let footprint = self.commands_footprint(commands);
+        if footprint.x_min == 0
+            || footprint.y_min == 0
+            || footprint.x_max >= self.width
+            || footprint.y_max >= self.height
+        {
+            return None;
+        }
+        let rect = self.layer_rect(blend_mode, commands, footprint)?;
+        (rect.width <= LAYER_ATLAS_SIZE && rect.height <= LAYER_ATLAS_SIZE)
+            .then_some((rect, footprint, blend))
+    }
+
+    /// Draws the content of the list's blend layers that can share a page into
+    /// as few pages as fit them, so each costs a slot instead of a render pass.
+    fn draw_layer_atlas(&mut self, commands: &mut CommandList) {
+        let mut candidates = Vec::new();
+        for command in &mut commands.commands {
+            if let Command::Blend(content, blend_mode) = command {
+                if let Some((rect, footprint, blend)) = self.atlas_candidate(content, blend_mode) {
+                    candidates.push(AtlasCandidate {
+                        index: self.atlas_layers.len(),
+                        rect,
+                        footprint,
+                        blend,
+                        content,
+                    });
+                }
+                self.atlas_layers.push_back(None);
+            }
+        }
+        if candidates.len() < 2 || crate::stats::sequential_draws() {
+            return;
+        }
+        candidates.sort_by_key(|candidate| Reverse(candidate.rect.height));
+        let mut page = Vec::new();
+        let (mut x, mut y, mut shelf) = (0, 0, 0);
+        for candidate in candidates {
+            if x + candidate.rect.width > LAYER_ATLAS_SIZE {
+                (x, y, shelf) = (0, y + shelf, 0);
+            }
+            if y + candidate.rect.height > LAYER_ATLAS_SIZE {
+                self.draw_layer_atlas_page(mem::take(&mut page));
+                (x, y, shelf) = (0, 0, 0);
+            }
+            let rect = candidate.rect;
+            page.push(PlacedLayer {
+                index: candidate.index,
+                rect,
+                footprint: candidate.footprint,
+                blend: candidate.blend,
+                content: mem::take(candidate.content),
+                slot: (x, y),
+            });
+            x += rect.width;
+            shelf = shelf.max(rect.height);
+        }
+        self.draw_layer_atlas_page(page);
+    }
+
+    fn draw_layer_atlas_page(&mut self, mut page: Vec<PlacedLayer>) {
+        let used = |end: u32| {
+            end.next_power_of_two()
+                .clamp(LAYER_SIZE_STEP, LAYER_ATLAS_SIZE)
+        };
+        let width = used(
+            page.iter()
+                .map(|layer| layer.slot.0 + layer.rect.width)
+                .max()
+                .unwrap_or(0),
+        );
+        let height = used(
+            page.iter()
+                .map(|layer| layer.slot.1 + layer.rect.height)
+                .max()
+                .unwrap_or(0),
+        );
+        let mut commands = CommandList::new();
+        for layer in &mut page {
+            translate_commands(
+                &mut layer.content,
+                Twips::from_pixels_i32(layer.slot.0 as i32 - layer.rect.x as i32),
+                Twips::from_pixels_i32(layer.slot.1 as i32 - layer.rect.y as i32),
+            );
+            commands.commands.append(&mut layer.content.commands);
+        }
+        let surface = Surface::new(
+            self.descriptors,
+            self.quality,
+            width,
+            height,
+            wgpu::TextureFormat::Rgba8Unorm,
+        );
+        let target = surface.draw_commands(
+            RenderTargetMode::FreshWithColor(wgpu::Color::TRANSPARENT),
+            self.descriptors,
+            self.meshes,
+            commands,
+            self.staging_belt,
+            self.dynamic_transforms,
+            self.draw_encoder,
+            LayerRef::None,
+            self.texture_pool,
+        );
+        target.ensure_cleared(self.draw_encoder);
+        crate::backend::submit_if_too_many_passes(
+            self.descriptors,
+            self.staging_belt,
+            self.draw_encoder.recorder,
+        );
+        let texture = Arc::new(target.take_color_texture());
+        let binds = self
+            .descriptors
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &self.descriptors.bind_layouts.bitmap,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(texture.view()),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(
+                            self.descriptors.bitmap_samplers.get_sampler(false, false),
+                        ),
+                    },
+                ],
+                label: None,
+            });
+        for layer in page {
+            self.atlas_layers[layer.index] = Some(AtlasLayer {
+                texture: texture.clone(),
+                binds: binds.clone(),
+                size: (width, height),
+                slot: layer.slot,
+                rect: layer.rect,
+                footprint: layer.footprint,
+                blend: layer.blend,
+            });
+        }
+    }
+
+    /// Composites a layer from its page, as `blend` composites one from its own texture.
+    fn composite_atlas_layer(&mut self, layer: AtlasLayer) {
+        let AtlasLayer {
+            texture,
+            binds,
+            size: (width, height),
+            slot: (x, y),
+            rect,
+            footprint,
+            blend,
+        } = layer;
+        let matrix = Matrix::translate(
+            Twips::from_pixels_i32(rect.x as i32),
+            Twips::from_pixels_i32(rect.y as i32),
+        ) * Matrix::scale(rect.width as f32, rect.height as f32);
+        let (u0, u1, v0, v1) = (
+            x as f32 / width as f32,
+            (x + rect.width) as f32 / width as f32,
+            y as f32 / height as f32,
+            (y + rect.height) as f32 / height as f32,
+        );
+        let vertices = [
+            PosUvVertex::new(0.0, 0.0, u0, v0, 1.0),
+            PosUvVertex::new(1.0, 0.0, u1, v0, 1.0),
+            PosUvVertex::new(1.0, 1.0, u1, v1, 1.0),
+            PosUvVertex::new(0.0, 1.0, u0, v1, 1.0),
+        ];
+        let reads_below = matches!(blend, DirectBlend::Complex(_));
+        if let (true, Some(block)) = (reads_below, &mut self.masked) {
+            block.items.push(MaskedItem::Copy(footprint));
+            block.reads_below = true;
+        }
+        self.add_to_current_with_vertices(
+            matrix,
+            0.0,
+            ColorTransform::default(),
+            Some(&vertices),
+            Footprint {
+                region: footprint,
+                reads_below,
+            },
+            |instance_index, vertex_offset| DrawCommand::RenderTexture {
+                _texture: texture,
+                binds,
+                instance_index,
+                vertex_offset,
+                blend_mode: blend,
+            },
+        );
     }
 
     fn parent_copy_region(&self, command: &Command) -> Option<PixelRegion> {
@@ -1686,6 +1969,10 @@ impl CommandHandler for WgpuCommandHandler<'_, '_> {
                 RenderBlendMode::Shader(_) => 15,
             }],
         );
+        if let Some(Some(layer)) = self.atlas_layers.pop_front() {
+            self.composite_atlas_layer(layer);
+            return;
+        }
         if self.try_blend_directly(&mut commands, &blend_mode) {
             return;
         }
@@ -1802,6 +2089,7 @@ impl CommandHandler for WgpuCommandHandler<'_, '_> {
                         _texture: Arc::new(texture),
                         binds: bind_group,
                         instance_index,
+                        vertex_offset: None,
                         blend_mode,
                     },
                 );
