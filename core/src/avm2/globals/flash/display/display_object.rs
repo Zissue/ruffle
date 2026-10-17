@@ -2,7 +2,10 @@
 
 use crate::avm2::StageObject;
 use crate::avm2::activation::Activation;
-use crate::avm2::error::{make_error_2005, make_error_2007, make_error_2008, make_error_2078};
+use crate::avm2::error::{
+    Error2004Type, make_error_2004, make_error_2005, make_error_2007, make_error_2008,
+    make_error_2078,
+};
 use crate::avm2::filters::FilterAvm2Ext;
 use crate::avm2::function::FunctionArgs;
 use crate::avm2::globals::flash::geom::transform::color_transform_from_transform_object;
@@ -127,14 +130,18 @@ pub fn get_scale9grid<'gc>(
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap();
 
-    avm2_stub_getter!(activation, "flash.display.DisplayObject", "scale9Grid");
     if let Some(dobj) = this.as_display_object() {
         let rect = dobj.scaling_grid();
-        return if rect.is_valid() {
-            new_rectangle(activation, rect)
-        } else {
-            Ok(Value::Null)
-        };
+        if !rect.is_valid() {
+            return Ok(Value::Null);
+        }
+        let args = &[rect.x_min, rect.y_min, rect.width(), rect.height()]
+            .map(|value| value.to_pixels().trunc().into());
+        return activation
+            .avm2()
+            .classes()
+            .rectangle
+            .construct(activation, args);
     }
 
     Ok(Value::Undefined)
@@ -148,13 +155,39 @@ pub fn set_scale9grid<'gc>(
 ) -> Result<Value<'gc>, Error<'gc>> {
     let this = this.as_object().unwrap();
 
-    avm2_stub_setter!(activation, "flash.display.DisplayObject", "scale9Grid");
     if let Some(dobj) = this.as_display_object() {
-        let rect = match args.try_get_object(0) {
-            None => Rectangle::default(),
-            Some(rect) => object_to_rectangle(rect),
+        let Some(rect) = args.try_get_object(0) else {
+            dobj.set_scaling_grid(Rectangle::default());
+            return Ok(Value::Undefined);
         };
-        dobj.set_scaling_grid(rect);
+        let [x, y, width, height] = [
+            rectangle_slots::X,
+            rectangle_slots::Y,
+            rectangle_slots::WIDTH,
+            rectangle_slots::HEIGHT,
+        ]
+        .map(|slot| {
+            let pixels = rect.get_slot(slot).as_f64();
+            Twips::new((pixels * Twips::TWIPS_PER_PIXEL as f64).round() as i32)
+        });
+        let grid = Rectangle {
+            x_min: x,
+            y_min: y,
+            x_max: Twips::new(x.get().saturating_add(width.get())),
+            y_max: Twips::new(y.get().saturating_add(height.get())),
+        };
+        let bounds = dobj.scale9_bounds();
+        if width <= Twips::ZERO
+            || height <= Twips::ZERO
+            || !bounds.is_valid()
+            || grid.x_min <= bounds.x_min
+            || grid.y_min <= bounds.y_min
+            || grid.x_max >= bounds.x_max
+            || grid.y_max >= bounds.y_max
+        {
+            return Err(make_error_2004(activation, Error2004Type::ArgumentError));
+        }
+        dobj.set_scaling_grid(grid);
     }
 
     Ok(Value::Undefined)

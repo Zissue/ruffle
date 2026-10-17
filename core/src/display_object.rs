@@ -2224,6 +2224,26 @@ pub trait TDisplayObject<'gc>:
     }
 
     #[no_dynamic]
+    fn scale9_bounds(self) -> Rectangle<Twips> {
+        let mut bounds = self.self_bounds(BoundsMode::ScriptWithoutStrokes);
+        if let Some(container) = self.as_container() {
+            for child in container.iter_render_list() {
+                if matches!(
+                    child,
+                    DisplayObject::Graphic(_)
+                        | DisplayObject::MovieClip(_)
+                        | DisplayObject::Bitmap(_)
+                        | DisplayObject::MorphShape(_)
+                ) {
+                    let child_bounds = child.self_bounds(BoundsMode::ScriptWithoutStrokes);
+                    bounds = bounds.union(&(child.base().matrix() * child_bounds));
+                }
+            }
+        }
+        bounds
+    }
+
+    #[no_dynamic]
     /// Whether this object has been removed. Only applies to AVM1.
     fn avm1_removed(self) -> bool {
         self.base().avm1_removed()

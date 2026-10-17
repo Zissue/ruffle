@@ -1,0 +1,21 @@
+unset: null
+art (x=15, y=15, w=30, h=30): (x=15, y=15, w=30, h=30)
+art (x=15.33, y=15.77, w=29.5, h=29.4): (x=15, y=15, w=29, h=29)
+art (x=10.96, y=10.04, w=20.98, h=20.99): (x=10, y=10, w=21, h=21)
+art (x=0, y=15, w=60, h=30): [class ArgumentError] 2004
+art (x=-5, y=15, w=70, h=30): [class ArgumentError] 2004
+art (x=15, y=15, w=0, h=30): [class ArgumentError] 2004
+art (x=15, y=15, w=-5, h=30): [class ArgumentError] 2004
+art (x=30, y=30, w=0.01, h=0.01): [class ArgumentError] 2004
+art (x=1, y=1, w=58, h=58): (x=1, y=1, w=58, h=58)
+null: null
+negative (x=-10.7, y=-10.2, w=20.9, h=20.1): (x=-10, y=-10, w=20, h=20)
+empty (x=1, y=1, w=2, h=2): [class ArgumentError] 2004
+stroked (x=-2, y=15, w=30, h=30): [class ArgumentError] 2004
+withShape (x=15, y=15, w=30, h=30): (x=15, y=15, w=30, h=30)
+withInvisibleShape (x=15, y=15, w=30, h=30): (x=15, y=15, w=30, h=30)
+withSprite (x=15, y=15, w=30, h=30): (x=15, y=15, w=30, h=30)
+withNestedShape (x=15, y=15, w=30, h=30): [class ArgumentError] 2004
+withText (x=15, y=15, w=30, h=30): [class ArgumentError] 2004
+after graphics.clear: (x=15, y=15, w=30, h=30)
+done
