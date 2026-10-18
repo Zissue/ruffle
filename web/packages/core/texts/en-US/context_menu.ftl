@@ -6,7 +6,5 @@ context-menu-about-ruffle =
         *[other] About Ruffle ({$version})
     }
 context-menu-hide = Hide This Menu
-context-menu-exit-fullscreen = Exit Full Screen
-context-menu-enter-fullscreen = Enter Full Screen
 context-menu-volume-controls = Volume Controls
 context-menu-frame-stats = Frame Stats

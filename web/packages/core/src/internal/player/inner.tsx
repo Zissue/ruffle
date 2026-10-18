@@ -1608,20 +1608,6 @@ export class InnerPlayer {
             addSeparator();
         }
 
-        if (this.fullscreenEnabled) {
-            if (this.isFullscreen) {
-                items.push({
-                    text: text("context-menu-exit-fullscreen"),
-                    onClick: async () => this.setFullscreen(false),
-                });
-            } else {
-                items.push({
-                    text: text("context-menu-enter-fullscreen"),
-                    onClick: async () => this.setFullscreen(true),
-                });
-            }
-        }
-
         items.push({
             text: text("context-menu-volume-controls"),
             onClick: async () => {

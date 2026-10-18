@@ -6,6 +6,4 @@ context-menu-about-ruffle =
        *[other] A Ruffle ({ $version }) névjegye
     }
 context-menu-hide = Ezen menü elrejtése
-context-menu-exit-fullscreen = Kilépés a teljes képernyőből
-context-menu-enter-fullscreen = Váltás teljes képernyőre
 context-menu-volume-controls = Hangerőszabályzó

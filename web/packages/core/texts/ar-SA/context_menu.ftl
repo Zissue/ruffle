@@ -6,6 +6,4 @@ context-menu-about-ruffle =
        *[other] عن رَفل ({ $version })
     }
 context-menu-hide = أخفِ هذه القائمة
-context-menu-exit-fullscreen = اخرج من وضعية الشاشة الكاملة
-context-menu-enter-fullscreen = ادخل وضعية الشاشة الكاملة
 context-menu-volume-controls = عناصر التحكم بالصوت

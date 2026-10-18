@@ -6,6 +6,4 @@ context-menu-about-ruffle =
        *[other] Informazioni su Ruffle ({ $version })
     }
 context-menu-hide = Nascondi questo menu
-context-menu-exit-fullscreen = Esci dallo schermo intero
-context-menu-enter-fullscreen = Entra a schermo intero
 context-menu-volume-controls = Controlli volume

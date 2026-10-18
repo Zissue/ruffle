@@ -6,6 +6,4 @@ context-menu-about-ruffle =
     *[other] О Ruffle ({ $version })
     }
 context-menu-hide = Сакриј овај мени
-context-menu-exit-fullscreen = Изађи из режима целог екрана
-context-menu-enter-fullscreen = Пређи на цео екран
 context-menu-volume-controls = Контроле јачине звука

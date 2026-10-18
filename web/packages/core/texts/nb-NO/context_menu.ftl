@@ -6,6 +6,4 @@ context-menu-about-ruffle =
        *[other] Om Ruffle ({ $version })
     }
 context-menu-hide = Skjul denne menyen
-context-menu-exit-fullscreen = Avslutt fullskjermmodus
-context-menu-enter-fullscreen = Fullskjermmodus
 context-menu-volume-controls = Justering av lydnivå

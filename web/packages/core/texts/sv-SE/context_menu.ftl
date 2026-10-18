@@ -6,6 +6,4 @@ context-menu-about-ruffle =
        *[other] Om Ruffle ({ $version })
     }
 context-menu-hide = Dölj den här menyn
-context-menu-exit-fullscreen = Avsluta helskärm
-context-menu-enter-fullscreen = Helskärm
 context-menu-volume-controls = Ljudkontroller
