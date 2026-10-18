@@ -127,7 +127,6 @@ impl Surface {
 
         let mut num_masks = 0;
         let mut mask_state = MaskState::NoMask;
-        let mut parent_copy: Option<wgpu::BindGroup> = None;
         let mut lists = chunk_blends(
             commands,
             descriptors,
@@ -175,6 +174,7 @@ impl Surface {
                                 _ => masks,
                             });
                     crate::backend::count_render_pass(crate::stats::PassKind::Draw);
+                    let parent_copy = target.parent_copy(descriptors);
                     let (color, reseed) = target.pass_color_attachment(descriptors, texture_pool);
                     let mut render_pass = draw_encoder.scoped_render_pass(
                         format!(
@@ -213,7 +213,7 @@ impl Surface {
                         mask_state,
                         needs_stencil,
                         opaque,
-                        parent_copy.as_ref(),
+                        parent_copy,
                     );
 
                     for command in chunk {
@@ -228,44 +228,7 @@ impl Surface {
                     mask_state = renderer.mask_state();
                 }
                 Chunk::CopyParent { regions } => {
-                    let mut blend_buffer = None;
-                    for region in regions {
-                        blend_buffer = Some(target.update_blend_buffer_region(
-                            descriptors,
-                            texture_pool,
-                            draw_encoder,
-                            region,
-                        ));
-                    }
-                    let Some(blend_buffer) = blend_buffer else {
-                        continue;
-                    };
-                    parent_copy.get_or_insert_with(|| {
-                        descriptors
-                            .device
-                            .create_bind_group(&wgpu::BindGroupDescriptor {
-                                label: create_debug_label!("Parent copy binds").as_deref(),
-                                layout: &descriptors.bind_layouts.parent_copy,
-                                entries: &[
-                                    wgpu::BindGroupEntry {
-                                        binding: 0,
-                                        resource: wgpu::BindingResource::TextureView(
-                                            blend_buffer.view(),
-                                        ),
-                                    },
-                                    wgpu::BindGroupEntry {
-                                        binding: 1,
-                                        resource: wgpu::BindingResource::Buffer(
-                                            wgpu::BufferBinding {
-                                                buffer: &descriptors.complex_direct_modes,
-                                                offset: 0,
-                                                size: wgpu::BufferSize::new(16),
-                                            },
-                                        ),
-                                    },
-                                ],
-                            })
-                    });
+                    target.copy_parent(descriptors, texture_pool, draw_encoder, regions);
                 }
                 Chunk::Blend {
                     texture,

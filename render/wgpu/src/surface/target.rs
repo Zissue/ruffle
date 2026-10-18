@@ -2,8 +2,18 @@ use crate::backend::RenderTargetMode;
 use crate::buffer_pool::{AlwaysCompatible, PoolEntry, TexturePool};
 use crate::descriptors::Descriptors;
 use crate::globals::Globals;
+use ruffle_render::bitmap::PixelRegion;
 use std::cell::{Cell, OnceCell};
 use std::sync::Arc;
+
+#[derive(Clone, Copy)]
+enum ParentCopy {
+    BlendBuffer,
+    /// The resolve buffer the pass reseeds from. It holds the image as it was
+    /// when the parent was copied wherever a draw reads it: nothing earlier in a
+    /// batch level draws under a draw that reads below.
+    Reseed,
+}
 
 #[derive(Debug)]
 pub struct ResolveBuffer {
@@ -197,6 +207,9 @@ pub struct CommandTarget {
     spare_resolve_buffer: OnceCell<ResolveBuffer>,
     resolved_to_spare: Cell<bool>,
     reseed_bind_groups: [OnceCell<wgpu::BindGroup>; 2],
+    parent_copy: Cell<Option<ParentCopy>>,
+    blend_buffer_parent_copy: OnceCell<wgpu::BindGroup>,
+    reseed_parent_copies: [OnceCell<wgpu::BindGroup>; 2],
     frame_buffer_holds_image: Cell<bool>,
     depth: OnceCell<StencilBuffer>,
     globals: Arc<Globals>,
@@ -286,6 +299,9 @@ impl CommandTarget {
             spare_resolve_buffer: OnceCell::new(),
             resolved_to_spare: Cell::new(false),
             reseed_bind_groups: Default::default(),
+            parent_copy: Cell::new(None),
+            blend_buffer_parent_copy: OnceCell::new(),
+            reseed_parent_copies: Default::default(),
             frame_buffer_holds_image: Cell::new(false),
             depth: OnceCell::new(),
             globals,
@@ -593,12 +609,70 @@ impl CommandTarget {
         blend_buffer
     }
 
+    pub fn copy_parent(
+        &self,
+        descriptors: &Descriptors,
+        pool: &mut TexturePool,
+        encoder: &mut wgpu::CommandEncoder,
+        regions: Vec<PixelRegion>,
+    ) {
+        self.ensure_cleared(encoder);
+        if self.resolve_buffer.is_some() && !self.frame_buffer_holds_image.get() {
+            self.parent_copy.set(Some(ParentCopy::Reseed));
+            return;
+        }
+        for region in regions {
+            self.update_blend_buffer_region(descriptors, pool, encoder, region);
+        }
+        self.parent_copy.set(Some(ParentCopy::BlendBuffer));
+    }
+
+    /// Call before `pass_color_attachment`, which moves on from the resolve
+    /// buffer the pass reseeds from.
+    pub fn parent_copy(&self, descriptors: &Descriptors) -> Option<&wgpu::BindGroup> {
+        let (bind_group, view) = match self.parent_copy.get()? {
+            ParentCopy::BlendBuffer => (
+                &self.blend_buffer_parent_copy,
+                self.blend_buffer
+                    .get()
+                    .expect("copy_parent filled the blend buffer")
+                    .view(),
+            ),
+            ParentCopy::Reseed => (
+                &self.reseed_parent_copies[usize::from(self.resolved_to_spare.get())],
+                self.color_view(),
+            ),
+        };
+        Some(bind_group.get_or_init(|| {
+            descriptors
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: create_debug_label!("Parent copy binds").as_deref(),
+                    layout: &descriptors.bind_layouts.parent_copy,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &descriptors.complex_direct_modes,
+                                offset: 0,
+                                size: wgpu::BufferSize::new(16),
+                            }),
+                        },
+                    ],
+                })
+        }))
+    }
+
     pub fn update_blend_buffer_region(
         &self,
         descriptors: &Descriptors,
         pool: &mut TexturePool,
         encoder: &mut wgpu::CommandEncoder,
-        region: ruffle_render::bitmap::PixelRegion,
+        region: PixelRegion,
     ) -> &BlendBuffer {
         let blend_buffer = self.blend_buffer.get_or_init(|| {
             BlendBuffer::new(
