@@ -1417,9 +1417,8 @@ impl RuffleHandle {
             }
             timings.report(core, frame_observer.as_ref());
 
-            // Smooth Motion draws a new position every display frame.
             next_frame_in = core.is_playing().then(|| {
-                if core.interpolating() {
+                if core.interpolating() && !matches!(rendering, Rendering::Suspended) {
                     0.0
                 } else {
                     core.time_til_next_frame().as_secs_f64() * 1000.0
