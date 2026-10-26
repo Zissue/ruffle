@@ -133,20 +133,16 @@ export interface PlayerV1 {
      *
      * @returns True if moving objects are drawn between frames.
      */
-    get frameInterpolation(): boolean;
+    get smoothMotion(): boolean;
 
     /**
-     * Turns Smooth Motion on or off.
-     *
-     * With Smooth Motion, the player draws every display frame instead of
-     * only at the movie's frame rate, and draws each moving object between
-     * where it was in the last frame and where it is now. Motion looks
-     * smoother, at the cost of drawing more often and showing it one movie
-     * frame later.
+     * Turns Smooth Motion on or off: drawing every display frame, with moving
+     * objects between their last two positions, one movie frame behind.
+     * The context menu's toggle fires `smoothmotionchange` on the player.
      *
      * @param value True to turn Smooth Motion on.
      */
-    set frameInterpolation(value: boolean);
+    set smoothMotion(value: boolean);
 
     /**
      * Returns whether the player has stopped drawing the movie.
