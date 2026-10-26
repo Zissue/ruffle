@@ -421,7 +421,6 @@ pub struct Player {
 
     frames_run: u64,
 
-    /// Smooth Motion: draw every display frame, moving objects between their positions in the last two frames.
     frame_interpolation: bool,
 
     /// Faked time passage for fooling hand-written busy-loop FPS limiters.
@@ -965,8 +964,6 @@ impl Player {
         self.needs_render || self.interpolating()
     }
 
-    /// Whether Smooth Motion is drawing every display frame right now.
-    /// Very low frame rates are left alone: they're set to save work, not to be watched.
     pub fn interpolating(&self) -> bool {
         self.frame_interpolation && self.is_playing() && self.frame_rate >= 10.0
     }
