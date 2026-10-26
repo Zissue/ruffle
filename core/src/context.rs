@@ -610,6 +610,8 @@ pub struct RenderContext<'a, 'gc> {
     pub scale9: Option<(DisplayObject<'gc>, Scale9)>,
 
     pub interpolation: Option<(u64, f32)>,
+
+    pub cache_root: Option<DisplayObject<'gc>>,
 }
 
 impl<'gc> RenderContext<'_, 'gc> {

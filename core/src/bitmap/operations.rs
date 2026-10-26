@@ -1482,6 +1482,7 @@ pub fn draw<'gc>(
         stage: context.stage,
         scale9: None,
         interpolation: None,
+        cache_root: None,
     };
 
     // Make the screen opacity match the opacity of this bitmap

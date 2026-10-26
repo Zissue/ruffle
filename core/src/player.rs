@@ -2175,6 +2175,7 @@ impl Player {
                 stage,
                 scale9: None,
                 interpolation,
+                cache_root: None,
             };
 
             stage.render_viewport(&mut render_context);

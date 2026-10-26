@@ -1135,7 +1135,11 @@ pub fn render_base<'gc>(
 
     if options.apply_transform {
         let mut transform = this.base().transform(options.apply_matrix);
-        if let (true, Some((frame, alpha))) = (options.apply_matrix, context.interpolation) {
+        if let (true, Some((frame, alpha)), None) = (
+            options.apply_matrix,
+            context.interpolation,
+            context.cache_root,
+        ) {
             transform.matrix = this.base().interpolated_matrix(frame, alpha);
         }
         context.transform_stack.push(&transform);
@@ -1289,7 +1293,10 @@ pub fn render_base<'gc>(
                 use_bitmap_cache: true,
                 stage: context.stage,
                 scale9,
-                interpolation: None,
+                interpolation: context.interpolation,
+                cache_root: context
+                    .interpolation
+                    .map(|_| cache_root_for(context.cache_root, this)),
             };
             this.render_self(&mut offscreen_context);
             offscreen_context.cache_draws.push(BitmapCacheEntry {
@@ -1375,14 +1382,51 @@ pub fn render_base<'gc>(
     }
 }
 
-fn interpolated_local_to_global_matrix(this: DisplayObject<'_>, frame: u64, alpha: f32) -> Matrix {
+fn is_in_subtree<'gc>(object: DisplayObject<'gc>, root: DisplayObject<'gc>) -> bool {
+    std::iter::successors(Some(object), |object| object.parent())
+        .any(|object| DisplayObject::ptr_eq(object, root))
+}
+
+fn cache_root_for<'gc>(
+    outer: Option<DisplayObject<'gc>>,
+    this: DisplayObject<'gc>,
+) -> DisplayObject<'gc> {
+    outer
+        .filter(|&root| is_in_subtree(this, root))
+        .unwrap_or(this)
+}
+
+fn draw_mask<'gc>(
+    context: &mut RenderContext<'_, 'gc>,
+    mask: DisplayObject<'gc>,
+    draw: impl FnOnce(&mut RenderContext<'_, 'gc>),
+) {
+    let outer = context.cache_root;
+    context.cache_root = outer.map(|root| cache_root_for(Some(root), mask));
+    draw(context);
+    context.cache_root = outer;
+}
+
+fn interpolated_local_to_global_matrix<'gc>(
+    this: DisplayObject<'gc>,
+    frame: u64,
+    alpha: f32,
+    cache_root: Option<DisplayObject<'gc>>,
+) -> Matrix {
+    let mut cached = cache_root.is_some_and(|root| is_in_subtree(this, root));
     let mut matrix = Matrix::IDENTITY;
     let mut node = Some(this);
     while let Some(object) = node.filter(|object| object.as_stage().is_none()) {
+        cached &= !cache_root.is_some_and(|root| DisplayObject::ptr_eq(object, root));
         if let Some(rect) = object.scroll_rect() {
             matrix = Matrix::translate(-rect.x_min, -rect.y_min) * matrix;
         }
-        matrix = object.base().interpolated_matrix(frame, alpha) * matrix;
+        let local = if cached {
+            object.base().matrix()
+        } else {
+            object.base().interpolated_matrix(frame, alpha)
+        };
+        matrix = local * matrix;
         node = object.parent();
     }
     matrix
@@ -1429,7 +1473,9 @@ pub fn apply_standard_mask_and_scroll<'gc, F>(
     let mut mask_transform = ruffle_render::transform::Transform::default();
     if let RenderMask::Stencil(m) | RenderMask::Alpha(m) = mask {
         let local_to_global = |object: DisplayObject<'gc>| match context.interpolation {
-            Some((frame, alpha)) => interpolated_local_to_global_matrix(object, frame, alpha),
+            Some((frame, alpha)) => {
+                interpolated_local_to_global_matrix(object, frame, alpha, context.cache_root)
+            }
             None => object.local_to_global_matrix(),
         };
         if options.apply_transform {
@@ -1440,7 +1486,7 @@ pub fn apply_standard_mask_and_scroll<'gc, F>(
     if let RenderMask::Stencil(m) = mask {
         context.commands.push_mask();
         context.transform_stack.push(&mask_transform);
-        m.render_self(context);
+        draw_mask(context, m, |context| m.render_self(context));
         context.transform_stack.pop();
         context.commands.activate_mask();
     }
@@ -1476,7 +1522,9 @@ pub fn apply_standard_mask_and_scroll<'gc, F>(
             apply_matrix: false,
             ..Default::default()
         };
-        m.render_with_options(context, options);
+        draw_mask(context, m, |context| {
+            m.render_with_options(context, options)
+        });
         context.transform_stack.pop();
 
         let mask_commands = std::mem::replace(&mut context.commands, original_commands);
@@ -1499,7 +1547,7 @@ pub fn apply_standard_mask_and_scroll<'gc, F>(
     if let RenderMask::Stencil(m) = mask {
         context.commands.deactivate_mask();
         context.transform_stack.push(&mask_transform);
-        m.render_self(context);
+        draw_mask(context, m, |context| m.render_self(context));
         context.transform_stack.pop();
         context.commands.pop_mask();
     }
@@ -3770,7 +3818,34 @@ mod interpolation_tests {
         frame: u64,
         alpha: f32,
     ) -> Vec<f64> {
+        draw_x(update, object, frame, alpha, None)
+    }
+
+    fn drawn_x_in_cache<'gc>(
+        update: &mut UpdateContext<'gc>,
+        object: MovieClip<'gc>,
+        frame: u64,
+        alpha: f32,
+        outer_cache_root: Option<DisplayObject<'gc>>,
+    ) -> Vec<f64> {
+        let cache_root = cache_root_for(outer_cache_root, object.into());
+        draw_x(update, object, frame, alpha, Some(cache_root))
+    }
+
+    fn draw_x<'gc>(
+        update: &mut UpdateContext<'gc>,
+        object: MovieClip<'gc>,
+        frame: u64,
+        alpha: f32,
+        cache_root: Option<DisplayObject<'gc>>,
+    ) -> Vec<f64> {
         let mut transform_stack = TransformStack::new();
+        if cache_root.is_some() {
+            transform_stack.push(&Transform {
+                matrix: object.base().interpolated_matrix(frame, alpha),
+                ..Default::default()
+            });
+        }
         let mut cache_draws = Vec::new();
         let mut context = RenderContext {
             renderer: update.renderer,
@@ -3785,15 +3860,27 @@ mod interpolation_tests {
             stage: update.stage,
             scale9: None,
             interpolation: Some((frame, alpha)),
+            cache_root,
         };
-        object.render(&mut context);
-        context
-            .commands
+        if cache_root.is_some() {
+            object.render_self(&mut context);
+        } else {
+            object.render(&mut context);
+        }
+        shape_x(context.commands)
+    }
+
+    fn shape_x(commands: CommandList) -> Vec<f64> {
+        commands
             .commands
             .into_iter()
-            .filter_map(|command| match command {
-                Command::RenderShape { transform, .. } => Some(transform.matrix.tx.to_pixels()),
-                _ => None,
+            .flat_map(|command| match command {
+                Command::RenderShape { transform, .. } => vec![transform.matrix.tx.to_pixels()],
+                Command::RenderAlphaMask {
+                    maskee_commands,
+                    mask_commands,
+                } => [shape_x(maskee_commands), shape_x(mask_commands)].concat(),
+                _ => vec![],
             })
             .collect()
     }
@@ -3817,6 +3904,98 @@ mod interpolation_tests {
             assert_eq!(drawn_x(update, content, 1, 0.5), [50.0, 0.0, 50.0]);
             content.set_x(Twips::from_pixels_i32(10));
             assert_eq!(drawn_x(update, content, 2, 0.5), [50.0, 5.0, 50.0]);
+        });
+    }
+
+    #[test]
+    fn masks_stay_put_while_a_cached_container_moves() {
+        with_update(|update| {
+            let container = MovieClip::new(update.root_swf.clone(), update.gc());
+            let content = MovieClip::new(update.root_swf.clone(), update.gc());
+            let mask = MovieClip::new(update.root_swf.clone(), update.gc());
+            square(content);
+            square(mask);
+            DisplayObject::from(container)
+                .as_container()
+                .unwrap()
+                .insert_at_index(update, content.into(), 0);
+            mask.set_x(Twips::from_pixels_i32(50));
+            content.set_mask(Some(mask.into()), update.gc());
+            assert_eq!(
+                drawn_x_in_cache(update, container, 1, 0.5, None),
+                [50.0, 0.0, 50.0]
+            );
+            container.set_x(Twips::from_pixels_i32(10));
+            content.set_x(Twips::from_pixels_i32(20));
+            assert_eq!(
+                drawn_x_in_cache(update, container, 2, 0.5, None),
+                [50.0, 25.0, 50.0]
+            );
+        });
+    }
+
+    #[test]
+    fn masks_stay_put_inside_a_cache_drawn_from_another_cache() {
+        with_update(|update| {
+            let container = MovieClip::new(update.root_swf.clone(), update.gc());
+            let outside = MovieClip::new(update.root_swf.clone(), update.gc());
+            let content = MovieClip::new(update.root_swf.clone(), update.gc());
+            let mask = MovieClip::new(update.root_swf.clone(), update.gc());
+            square(content);
+            square(mask);
+            DisplayObject::from(outside)
+                .as_container()
+                .unwrap()
+                .insert_at_index(update, content.into(), 0);
+            outside.set_x(Twips::from_pixels_i32(50));
+            mask.set_x(Twips::from_pixels_i32(100));
+            content.set_mask(Some(mask.into()), update.gc());
+            let container = Some(container.into());
+            assert_eq!(
+                drawn_x_in_cache(update, outside, 1, 0.5, container),
+                [100.0, 50.0, 100.0]
+            );
+            content.set_x(Twips::from_pixels_i32(20));
+            assert_eq!(
+                drawn_x_in_cache(update, outside, 2, 0.5, container),
+                [100.0, 70.0, 100.0]
+            );
+        });
+    }
+
+    #[test]
+    fn masks_stay_put_inside_a_mask_drawn_from_a_cache() {
+        with_update(|update| {
+            let container = MovieClip::new(update.root_swf.clone(), update.gc());
+            let content = MovieClip::new(update.root_swf.clone(), update.gc());
+            let outer_mask = MovieClip::new(update.root_swf.clone(), update.gc());
+            let child = MovieClip::new(update.root_swf.clone(), update.gc());
+            let inner = MovieClip::new(update.root_swf.clone(), update.gc());
+            let inner_mask = MovieClip::new(update.root_swf.clone(), update.gc());
+            for clip in [content, inner, inner_mask] {
+                square(clip);
+            }
+            for (parent, clip) in [(container, content), (outer_mask, child), (child, inner)] {
+                DisplayObject::from(parent)
+                    .as_container()
+                    .unwrap()
+                    .insert_at_index(update, clip.into(), 0);
+            }
+            outer_mask.set_x(Twips::from_pixels_i32(50));
+            inner_mask.set_x(Twips::from_pixels_i32(100));
+            content.set_bitmap_cached_preference(true);
+            outer_mask.set_bitmap_cached_preference(true);
+            content.set_mask(Some(outer_mask.into()), update.gc());
+            inner.set_mask(Some(inner_mask.into()), update.gc());
+            assert_eq!(
+                drawn_x_in_cache(update, container, 1, 0.5, None),
+                [0.0, 100.0, 50.0, 100.0]
+            );
+            child.set_x(Twips::from_pixels_i32(20));
+            assert_eq!(
+                drawn_x_in_cache(update, container, 2, 0.5, None),
+                [0.0, 100.0, 70.0, 100.0]
+            );
         });
     }
 
