@@ -375,6 +375,9 @@ pub struct DisplayObjectBase<'gc> {
     scaling_grid: Cell<Rectangle<Twips>>,
 
     global_matrix: Cell<(u32, Matrix)>,
+
+    /// Smooth Motion: the last frame this was drawn in, with its matrix in the frame before and in that frame.
+    interpolation: Cell<(u64, Matrix, Matrix)>,
 }
 
 #[derive(Clone)]
@@ -425,6 +428,7 @@ impl Default for DisplayObjectBase<'_> {
             next_scroll_rect: Default::default(),
             scaling_grid: Default::default(),
             global_matrix: Cell::new((0, Matrix::IDENTITY)),
+            interpolation: Cell::new((u64::MAX, Matrix::IDENTITY, Matrix::IDENTITY)),
         }
     }
 }
@@ -515,6 +519,34 @@ impl<'gc> DisplayObjectBase<'gc> {
             color_transform: self.color_transform.get(),
             perspective_projection: self.perspective_projection.get(),
             tz: self.tz.get(),
+        }
+    }
+
+    /// Smooth Motion: this object's matrix `alpha` of the way from the previous frame's to the current one.
+    fn interpolated_matrix(&self, frame: u64, alpha: f32) -> Matrix {
+        let current = self.matrix.get();
+        let (seen, previous, last) = self.interpolation.get();
+        let previous = match frame.wrapping_sub(seen) {
+            0 => previous,
+            1 => last,
+            // Not drawn last frame (new, hidden or frames skipped), so there's nothing to move from.
+            _ => current,
+        };
+        self.interpolation.set((frame, previous, current));
+        if !moved_smoothly(&previous, &current) {
+            return current;
+        }
+        let lerp = |from: f32, to: f32| from + (to - from) * alpha;
+        let lerp_twips = |from: Twips, to: Twips| {
+            Twips::new(lerp(from.get() as f32, to.get() as f32).round() as i32)
+        };
+        Matrix {
+            a: lerp(previous.a, current.a),
+            b: lerp(previous.b, current.b),
+            c: lerp(previous.c, current.c),
+            d: lerp(previous.d, current.d),
+            tx: lerp_twips(previous.tx, current.tx),
+            ty: lerp_twips(previous.ty, current.ty),
         }
     }
 
@@ -1062,6 +1094,17 @@ struct DrawCacheInfo {
     filters: Vec<Filter>,
 }
 
+/// Whether a change of matrix between two frames looks like motion, rather than a jump or a flip
+/// that drawing in-between positions would smear.
+fn moved_smoothly(from: &Matrix, to: &Matrix) -> bool {
+    const MAX_STEP: i32 = 100 * Twips::TWIPS_PER_PIXEL;
+    let determinant = |m: &Matrix| m.a * m.d - m.b * m.c;
+    from != to
+        && (to.tx - from.tx).get().abs() <= MAX_STEP
+        && (to.ty - from.ty).get().abs() <= MAX_STEP
+        && determinant(from) * determinant(to) > 0.0
+}
+
 pub fn render_base<'gc>(
     this: DisplayObject<'gc>,
     context: &mut RenderContext<'_, 'gc>,
@@ -1073,7 +1116,10 @@ pub fn render_base<'gc>(
     }
 
     if options.apply_transform {
-        let transform = this.base().transform(options.apply_matrix);
+        let mut transform = this.base().transform(options.apply_matrix);
+        if let (true, Some((frame, alpha))) = (options.apply_matrix, context.interpolation) {
+            transform.matrix = this.base().interpolated_matrix(frame, alpha);
+        }
         context.transform_stack.push(&transform);
     }
 
@@ -1225,6 +1271,8 @@ pub fn render_base<'gc>(
                 use_bitmap_cache: true,
                 stage: context.stage,
                 scale9,
+                // A cache is only redrawn when invalidated, so its contents aren't interpolated.
+                interpolation: None,
             };
             this.render_self(&mut offscreen_context);
             offscreen_context.cache_draws.push(BitmapCacheEntry {
@@ -3609,5 +3657,39 @@ impl<'gc> DisplayObjectWeak<'gc> {
             DisplayObjectWeak::LoaderDisplay(ld) => ld.upgrade(mc).map(|ld| ld.into()),
             DisplayObjectWeak::Bitmap(b) => b.upgrade(mc).map(|ld| ld.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod interpolation_tests {
+    use super::*;
+
+    fn at(x: i32) -> Matrix {
+        Matrix::translate(Twips::from_pixels_i32(x), Twips::ZERO)
+    }
+
+    #[test]
+    fn draws_between_the_last_two_frames() {
+        let base = DisplayObjectBase::default();
+        base.set_matrix(at(0));
+        assert_eq!(base.interpolated_matrix(1, 0.5), at(0));
+        base.set_matrix(at(10));
+        assert_eq!(base.interpolated_matrix(2, 0.5), at(5));
+        assert_eq!(base.interpolated_matrix(2, 1.0), at(10));
+    }
+
+    #[test]
+    fn snaps_after_jumps_flips_and_skipped_frames() {
+        let base = DisplayObjectBase::default();
+        base.set_matrix(at(0));
+        base.interpolated_matrix(1, 0.0);
+        base.set_matrix(at(500));
+        assert_eq!(base.interpolated_matrix(2, 0.5), at(500));
+
+        base.set_matrix(Matrix::scale(-1.0, 1.0) * at(500));
+        assert_eq!(base.interpolated_matrix(3, 0.5), base.matrix());
+
+        base.set_matrix(at(510));
+        assert_eq!(base.interpolated_matrix(5, 0.5), at(510));
     }
 }

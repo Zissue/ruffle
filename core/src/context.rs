@@ -608,6 +608,10 @@ pub struct RenderContext<'a, 'gc> {
 
     /// The object being drawn whose scaling grid slices its drawing and its children's shapes.
     pub scale9: Option<(DisplayObject<'gc>, Scale9)>,
+
+    /// Smooth Motion: the frame being drawn, and how far (0 to 1) the time is towards the next one.
+    /// Objects are then drawn between where they were last frame and where they are now.
+    pub interpolation: Option<(u64, f32)>,
 }
 
 impl<'gc> RenderContext<'_, 'gc> {

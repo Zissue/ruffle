@@ -68,6 +68,14 @@ export class PlayerV1Impl implements PlayerV1 {
         this.#inner.renderScale = value;
     }
 
+    get frameInterpolation(): boolean {
+        return this.#inner.frameInterpolation;
+    }
+
+    set frameInterpolation(value: boolean) {
+        this.#inner.frameInterpolation = value;
+    }
+
     get renderingSuspended(): boolean {
         return this.#inner.renderingSuspended;
     }
